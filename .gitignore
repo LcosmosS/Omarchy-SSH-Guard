@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+*.pem
+*.key
+id_*
+authorized_keys
+known_hosts
+inventory*.json
+report*.json
+evidence*.json
+transaction*.json
+ufw-backup*
+*.tar.gz
+*.log
