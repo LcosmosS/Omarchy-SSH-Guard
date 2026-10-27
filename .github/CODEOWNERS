@@ -1,0 +1,19 @@
+# Omarchy SSH Guard — ownership map
+# Both listed accounts were verified to hold repository write access on 2026-10-27.
+# GitHub can request CODEOWNER review, but PR authors cannot approve their own changes.
+# CODEOWNER enforcement applies when this file exists on the target base branch.
+* @LcosmosS @LibertySquared
+
+# Protect governance, Actions, and the ownership map itself.
+/.github/ @LcosmosS @LibertySquared
+/.github/CODEOWNERS @LcosmosS @LibertySquared
+
+# Security-sensitive components and documentation.
+/bin/ @LcosmosS @LibertySquared
+/scripts/ @LcosmosS @LibertySquared
+/tests/ @LcosmosS @LibertySquared
+/docs/ @LcosmosS @LibertySquared
+/manifest.json @LcosmosS @LibertySquared
+/BarWidget.qml @LcosmosS @LibertySquared
+/Panel.qml @LcosmosS @LibertySquared
+/SECURITY.md @LcosmosS @LibertySquared
