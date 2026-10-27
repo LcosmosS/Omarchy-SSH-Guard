@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+"""Read-only Omarchy SSH/UFW/Docker inventory. No privilege escalation or writes."""
+import argparse
+import ipaddress
+import json
+import os
+import re
+import subprocess
+from datetime import datetime, timezone
+
+VERSION = "0.1.0"
+
+
+def run(argv, timeout=8):
+    try:
+        p = subprocess.run(argv, shell=False, capture_output=True, text=True,
+                           timeout=timeout, check=False)
+        return p.returncode == 0, p.stdout
+    except (FileNotFoundError, PermissionError, subprocess.TimeoutExpired):
+        return False, ""
+
+
+def ssh_rule_classification(text):
+    result = {"global_ipv4_allow": False, "global_ipv6_allow": False,
+              "source_specific_rule_count": 0}
+    for line in text.splitlines():
+        line = re.sub(r"^\s*\[\s*\d+\]\s*", "", line)
+        if not re.match(r"^\s*(22(?:/tcp)?|OpenSSH|ssh)\s+", line, flags=re.I):
+            continue
+        if not re.search(r"\b(?:ALLOW|LIMIT)\s+IN\b", line):
+            continue
+        if re.search(r"\bAnywhere\s*\(v6\)", line, flags=re.I):
+            result["global_ipv6_allow"] = True
+        elif re.search(r"\bAnywhere\b", line, flags=re.I):
+            result["global_ipv4_allow"] = True
+        else:
+            result["source_specific_rule_count"] += 1
+    return result
+
+
+def loopback_publications(text):
+    out = {"loopback_published": 0, "nonloopback_published": 0,
+           "unclassified_published": 0, "containers_observed": 0}
+    for line in text.splitlines():
+        try:
+            row = json.loads(line)
+            ports = row.get("Ports", "")
+            if not isinstance(ports, str):
+                raise ValueError("Invalid Docker port text")
+        except (ValueError, TypeError, AttributeError):
+            out["unclassified_published"] += 1
+            continue
+        out["containers_observed"] += 1
+        for part in ports.split(","):
+            if "->" not in part:
+                continue  # EXPOSE metadata is not a host publication
+            host = part.split("->", 1)[0].strip()
+            if host.startswith(("127.0.0.1:", "[::1]:")):
+                out["loopback_published"] += 1
+            elif host.startswith(("0.0.0.0:", ":::", "[::]:")):
+                out["nonloopback_published"] += 1
+            else:
+                out["unclassified_published"] += 1
+    return out
+
+
+def ssh_wildcard_listening(text):
+    return any(re.search(r"(?<![0-9])(?:0\.0\.0\.0|\*|\[::\]|::):22\s", line)
+               for line in text.splitlines())
+
+
+def audit():
+    checks = {}
+    ok, status = run(["/usr/bin/ufw", "status", "verbose"])
+    if ok:
+        checks["ufw"] = {
+            "observed": True,
+            "active": bool(re.search(r"^Status:\s*active\s*$", status, re.M)),
+            "default_deny_incoming": bool(re.search(
+                r"Default:\s*deny\s*\(incoming\)", status, re.I))
+        }
+        valid, numbered = run(["/usr/bin/ufw", "status", "numbered"])
+        checks["ssh_firewall"] = (dict({"observed": True}, **ssh_rule_classification(numbered))
+                                  if valid else {"observed": False})
+    else:
+        checks["ufw"] = {"observed": False}
+        checks["ssh_firewall"] = {"observed": False}
+    valid, listeners = run(["/usr/bin/ss", "-ltn"])
+    checks["ssh_listener"] = {
+        "observed": valid, "wildcard_port_22": ssh_wildcard_listening(listeners) if valid else None}
+    valid, docker = run(["/usr/bin/docker", "ps", "--format", "{{json .}}"])
+    checks["docker_ports"] = (dict({"observed": True}, **loopback_publications(docker))
+                              if valid else {"observed": False})
+    checks["external_reachability"] = {
+        "observed": False, "reason": "requires independent network tests"}
+    return {
+        "schema": 1, "tool_version": VERSION,
+        "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "verdict": "NOT_VERIFIED", "checks": checks,
+        "note": "Counts and booleans only; unknown state is not a security pass."
+    }
+
+
+def plan_source(value):
+    try:
+        network = ipaddress.ip_network(value, strict=True)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("Invalid host CIDR") from exc
+    if network.num_addresses != 1:
+        raise argparse.ArgumentTypeError("Only /32 IPv4 or /128 IPv6 individual hosts are supported")
+    return str(network)
+
+
+def cli():
+    parser = argparse.ArgumentParser(description="Unprivileged, read-only Omarchy security inspection")
+    subs = parser.add_subparsers(dest="command", required=True)
+    audit_p = subs.add_parser("audit", help="Inspect only; never modify")
+    audit_p.add_argument("--json", action="store_true")
+    plan_p = subs.add_parser("plan", help="Print a non-executable hardening checklist")
+    plan_p.add_argument("--ssh-source", type=plan_source, required=True)
+    args = parser.parse_args()
+    if os.geteuid() == 0:
+        parser.error("Do not run a user-writable CLI as root; use unprivileged audit mode")
+    if args.command == "audit":
+        result = audit()
+        if args.json:
+            print(json.dumps(result, indent=2, sort_keys=True))
+        else:
+            print("Omarchy SSH Guard | audit only | security verdict: NOT VERIFIED")
+            print("Local observations only; external access is NOT TESTED.")
+            for name, report in result["checks"].items():
+                print(f"{name}: {json.dumps(report, sort_keys=True)}")
+    else:
+        print("PLAN ONLY — NO FIREWALL CHANGES")
+        print(f"Requested source: {args.ssh_source}")
+        print("1. Inventory all authorized clients and local-console recovery.")
+        print("2. Verify SSH host keys and a fresh client public-key login.")
+        print("3. Audit sshd, save a root-protected UFW backup, test restore.")
+        print("4. Prepare and arm a trusted, automatic rollback before UFW changes.")
+        print("5. Only after explicit approval, add source allowances and remove broad rules.")
+        print("6. Verify fresh authorized login and independent unauthorized IPv4/IPv6 rejection.")
+        print("7. Finalize only after all real evidence passes; otherwise allow rollback.")
+        print("There is no apply, finalize, or rollback command in this package.")
+
+
+if __name__ == "__main__":
+    cli()

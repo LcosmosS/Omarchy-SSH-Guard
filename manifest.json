@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "community.omarchy-ssh-guard",
+  "name": "Omarchy SSH Guard",
+  "version": "0.1.0",
+  "author": "Omarchy SSH Guard contributors",
+  "license": "MIT",
+  "description": "Read-only SSH/UFW/Docker audit instructions; no privileged action from the desktop shell.",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "BarWidget.qml" },
+  "barWidget": {
+    "displayName": "SSH Guard",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
