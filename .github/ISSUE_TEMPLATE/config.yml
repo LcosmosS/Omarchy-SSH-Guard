@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Sensitive security report
+    url: https://github.com/LcosmosS/Omarchy-SSH-Guard/security/advisories/new
+    about: Use private vulnerability reporting only if enabled; otherwise request a confidential channel without disclosing details.

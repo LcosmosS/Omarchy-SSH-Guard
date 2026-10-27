@@ -191,6 +191,19 @@ Public pull requests must contain **synthetic fixtures only**. Do not commit rea
 - [OpenSSH sshd_config manual](https://man.openbsd.org/sshd_config)
 - [UFW manual](https://manpages.ubuntu.com/manpages/noble/man8/ufw.8.html)
 
+
+## Repository governance and automated security checks
+
+The security-focused source remains **read-only**: no SSH/UFW system changes, credential handling, or privileged evidence-engine integration are added by the governance workflows.
+
+- [Code ownership](.github/CODEOWNERS) and the [ownership change log](docs/CODEOWNERS_LOG.md) identify the repository owner for review; this is **not independent approval** until a second eligible reviewer is onboarded.
+- [Privacy guard](.github/workflows/privacy.yml) checks committed text and paths against common private-artifact, token, local-address and personal-email patterns. It is heuristic and may miss other sensitive data. Do not upload operational backups or keys.
+- [CodeQL](.github/workflows/codeql.yml) analyzes Python and GitHub Actions workflows on PRs, main-branch pushes and a schedule. **QML is not covered**.
+- [Dependabot](.github/dependabot.yml) proposes GitHub Actions updates.
+- [Disabled ruleset review](docs/RULESET_REVIEW.md) documents a staged activation plan and the sole-maintainer approval deadlock.
+
+The governance CI does not attest to a secure deployed firewall, prove network isolation, or unblock any previously rejected privileged integration. The protected-branch ruleset must be configured and activated separately in GitHub settings after the checks, eligible reviewers and entitlement are validated.
+
 ## License
 
 MIT — see [`LICENSE`](LICENSE).
