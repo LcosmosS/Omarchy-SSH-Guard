@@ -160,8 +160,13 @@ class MemoryDisk:
         self.synced = set()
         self.unsynced_renames = {}
 
-    def read(self, key):
-        return unseal(self.visible.get(key))
+    def read(self, key, *, confirmed=False):
+        """Read visible or acknowledged modeled bytes; no real fsync assurance."""
+        return unseal((self.durable if confirmed else self.visible).get(key))
+
+    def unacknowledged(self, key):
+        """Whether the visible rename has not crossed a directory-sync barrier."""
+        return key in self.unsynced_renames
 
     def publish(self, key, value, label, exclusive=False):
         raw = sealed(value)
@@ -233,8 +238,8 @@ class Timer:
         if self.cancel_mode == "fail":
             raise AdapterFault("Synthetic cancellation failure")
         if self.cancel_mode != "false_ack":
-            self.active = self.enabled = self.running = False
-            self.queued.clear()
+            self.active = self.enabled = False
+            # Stopping a timer does not stop the running service or queued jobs.
         world.checkpoint("timer:after_cancel")
         return True  # Deliberately NOT treated as an observation by Controller.
 
@@ -251,6 +256,7 @@ class Firewall:
 
     def restrict(self, world, capsule):
         world.checkpoint("firewall:before_restrict")
+        require(self.snapshot() == (capsule["baseline"],) * 2)
         # Independent test oracle captures prerequisites at the actual effect.
         self.restrictions.append((deepcopy(world.disk.durable), world.timer.snapshot(), deepcopy(world.clock)))
         self.live = capsule["restricted"]
@@ -260,6 +266,8 @@ class Firewall:
 
     def restore(self, world, capsule):
         world.checkpoint("firewall:before_restore")
+        require(world.restorer_available)
+        require(set(self.snapshot()) <= {capsule["baseline"], capsule["restricted"]})
         self.restores += 1
         self.live = capsule["baseline"]
         world.checkpoint("firewall:after_restore_live")
@@ -277,6 +285,8 @@ class World:
         self.clock = Clock()
         self.optional_services = {name: object() for name in ("collector", "docker", "journald", "unrelated-package")}
         self.restorer_available = True
+        self.operation_active = False
+        self.last_accepted_clock = None
 
     def checkpoint(self, label):
         self.trace.append(label)
@@ -291,6 +301,7 @@ class World:
             self.clock = Clock("synthetic-boot-b", self.clock.wall + 3, 0)
             self.firewall.live = self.firewall.persisted
             self.timer = Timer()
+            self.last_accepted_clock = None
 
 
 class Controller:
@@ -321,11 +332,14 @@ class Controller:
                 and type(lease["schema"]) is int and lease["schema"] == 1)
         if lease["run_id"] != self.run_id:
             raise StaleRun()
-        state = self.w.disk.read(self._key("state"))
+        require(not self.w.disk.unacknowledged(self._key("state")))
+        state = self.w.disk.read(self._key("state"), confirmed=True)
         require(type(state) is dict and set(state) == {"schema", "run_id", "plan", "phase", "disposition"})
         require(type(state["schema"]) is int and state["schema"] == 1
                 and state["run_id"] == self.run_id and state["plan"] == lease["plan"])
-        require(state["phase"] in {p.value for p in Phase} and state["disposition"] in (None, "COMMIT", "ROLLBACK"))
+        require(type(state["phase"]) is str and state["phase"] in {p.value for p in Phase}
+                and type(state["disposition"]) in (str, type(None))
+                and state["disposition"] in (None, "COMMIT", "ROLLBACK"))
         capsule = self.w.disk.read(self._key("capsule"))
         require(type(capsule) is dict and digest(capsule) == lease["plan"])
         require(set(capsule) == {"schema", "run_id", "baseline", "restricted", "intent", "mechanism",
@@ -338,7 +352,8 @@ class Controller:
         require(capsule["wall_due"] - capsule["wall_start"] == capsule["mono_due"] - capsule["mono_start"] == 900)
         service = self.w.disk.read(self._key("service"))
         require(canonical(service) == canonical(self._service(capsule)))
-        marker = self.w.disk.read(self._key("decision"))
+        require(not self.w.disk.unacknowledged(self._key("decision")))
+        marker = self.w.disk.read(self._key("decision"), confirmed=True)
         if marker is not None:
             require(canonical(marker) == canonical({"schema": 1, "run_id": self.run_id, "plan": lease["plan"],
                                                     "approval": "synthetic-independent-review"}))
@@ -355,11 +370,14 @@ class Controller:
         if state["phase"] in (Phase.PREPARED.value, Phase.RECOVERY_DURABLE.value, Phase.ROLLBACK_ARMED.value,
                               Phase.MUTATION_INTENT.value, Phase.RESTRICTED_PENDING.value):
             require(state["disposition"] is None)
-        require(self.w.restorer_available)
+        require(self.w.restorer_available or marker is not None)
         return state, capsule, service, marker is not None
 
     def _clock_valid(self, capsule):
         c = self.w.clock
+        sample = self.w.last_accepted_clock
+        if sample is not None and sample[0] == c.boot and (c.mono < sample[1] or c.wall < sample[2]):
+            return False
         return (c.boot == capsule["boot"] and c.mono >= capsule["mono_start"]
                 and c.mono < capsule["mono_due"] and c.wall < capsule["wall_due"]
                 and abs((c.wall - capsule["wall_start"]) - (c.mono - capsule["mono_start"])) <= 2)
@@ -367,15 +385,23 @@ class Controller:
     def _timer_valid(self, capsule, service, context):
         self.w.checkpoint("timer:observe:" + context)
         t = self.w.timer
-        return (self._clock_valid(capsule) and t.run_id == self.run_id and t.config == digest(service)
+        valid = (self._clock_valid(capsule) and t.run_id == self.run_id and t.config == digest(service)
                 and t.boot == self.w.clock.boot and t.active and t.enabled and not t.running and not t.queued
                 and t.mono_due == capsule["mono_due"] and t.wall_due == capsule["wall_due"]
                 and t.mono_due > self.w.clock.mono and t.wall_due > self.w.clock.wall)
+        if valid:
+            c = self.w.clock
+            self.w.last_accepted_clock = (c.boot, c.mono, c.wall)
+        return valid
 
     def _timer_clear(self):
         self.w.checkpoint("timer:observe:cleanup")
         t = self.w.timer
-        return (t.run_id in (None, self.run_id) and not t.active and not t.enabled
+        service = self.w.disk.read(self._key("service"))
+        require(type(service) is dict)
+        matched = ((t.run_id is None and t.config is None)
+                   or (t.run_id == self.run_id and t.config == digest(service)))
+        return (matched and not t.active and not t.enabled
                 and not t.running and not t.queued)
 
     def _observed_firewall(self, context):
@@ -383,7 +409,7 @@ class Controller:
         return self.w.firewall.snapshot()
 
     def _result(self, phase, code, cancelled=False, committed=False):
-        state = self.w.disk.read(self._key("state"))
+        state = self.w.disk.read(self._key("state"), confirmed=True)
         return Result(phase, code, cancelled, committed, state["phase"] if state else None)
 
     def _prepare(self):
@@ -432,6 +458,7 @@ class Controller:
         if not self._timer_valid(capsule, service, "before_mutation"):
             return self._recover()
         self._load()  # Recheck restoration mechanism and immutable inputs after observation.
+        require(self._observed_firewall("before_mutation") == (capsule["baseline"],) * 2)
         self.w.firewall.restrict(self.w, capsule)
         require(self._observed_firewall("restricted") == (capsule["restricted"],) * 2)
         self._record(Phase.RESTRICTED_PENDING, state["plan"])
@@ -481,7 +508,10 @@ class Controller:
         state, capsule, service, committed = self._load()
         if committed:
             return self._finish()
-        if self._observed_firewall("recovery") != (capsule["baseline"],) * 2:
+        actual = self._observed_firewall("recovery")
+        require(set(actual) <= {capsule["baseline"], capsule["restricted"]})
+        if actual != (capsule["baseline"],) * 2:
+            require(self.w.restorer_available)
             self._record(Phase.ROLLBACK_PENDING, state["plan"], "ROLLBACK")
             self.w.firewall.restore(self.w, capsule)
             require(self._observed_firewall("restored") == (capsule["baseline"],) * 2)
@@ -498,8 +528,8 @@ class Controller:
             return self._result(Phase.CLEANUP_PENDING, "CANCELLATION_UNCONFIRMED", False, committed)
         return self._result(phase, "PENDING", False, committed)
 
-    def execute(self, event, *, expected_run=None, approval=None, evidence=None):
-        """A test protocol event, never a system command or deployment operation."""
+    def _execute_unlocked(self, event, *, expected_run=None, approval=None, evidence=None):
+        """A model event that assumes the world operation guard is held."""
         try:
             self.w.checkpoint("event:" + event + ":entry")
             if expected_run is not None and expected_run != self.run_id:
@@ -526,9 +556,23 @@ class Controller:
         except (StorageFault, AdapterFault, MetadataFault) as exc:
             # Do not manufacture completion from a readable phase after an error.
             try:
-                last = self.w.disk.read(self._key("state"))
-                phase = last.get("phase") if last else None
+                last = self.w.disk.read(self._key("state"), confirmed=True)
+                phase = last.get("phase") if last and type(last.get("phase")) is str else None
             except MetadataFault:
                 phase = None
             return Result(Phase.RECOVERY_BLOCKED, "IO_UNCERTAIN" if isinstance(exc, StorageFault) else "RECOVERY_BLOCKED",
                           persistent_phase=phase)
+
+    def execute(self, event, *, expected_run=None, approval=None, evidence=None):
+        """Reject synthetic concurrent commit/rollback interleaving.
+
+        Not a real interprocess, filesystem, or OS-level lock.
+        """
+        if self.w.operation_active:
+            return Result(Phase.RECOVERY_BLOCKED, "CONCURRENT_EVENT_BLOCKED")
+        self.w.operation_active = True
+        try:
+            return self._execute_unlocked(event, expected_run=expected_run,
+                                          approval=approval, evidence=evidence)
+        finally:
+            self.w.operation_active = False
