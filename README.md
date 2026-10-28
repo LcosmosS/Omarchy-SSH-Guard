@@ -55,6 +55,12 @@ This project is **not** a hosted monitoring service, a cloud management platform
 
 **The plugin does not run a background collection agent or upload personal system data.** Host configuration and any local evidence remain under the operator's control. External software used for installation or diagnostics (such as GitHub, an OS package manager, or Docker) may have its own independent behavior; this repository cannot guarantee their privacy practices. These statements describe the reviewed code and design, **not a formal security certification**.
 
+<p align="center">
+  <img src="assets/omarchy-ssh-guard-overview.webp" alt="Omarchy SSH Guard project overview: royal-blue and gold shield, local-only privacy principles, recovery-oriented development goals and documentation references" width="1000" />
+</p>
+
+<p align="center"><sub>Project overview graphic. Its status labels are illustrative, not a live security verdict or evidence of deployed SSH hardening.</sub></p>
+
 ## Requirements
 
 - An Omarchy 4.x desktop for the optional QML widget (validate against your exact installation).

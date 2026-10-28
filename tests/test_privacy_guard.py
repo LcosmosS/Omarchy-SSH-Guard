@@ -1,6 +1,7 @@
 """Synthetic negative tests for the privacy heuristic."""
 import importlib.util
 import subprocess
+import hashlib
 from pathlib import Path
 import tempfile
 import unittest
@@ -140,6 +141,53 @@ class PrivacyGuardTests(unittest.TestCase):
 
     def test_normal_file_allowed(self):
         self.assertEqual(guard.filename_findings("docs/RULESET_REVIEW.md"), [])
+
+    def test_pinned_branding_artwork_is_allowed(self):
+        path = "assets/omarchy-ssh-guard-overview.webp"
+        data = (ROOT / path).read_bytes()
+        self.assertEqual(
+            hashlib.sha256(data).hexdigest(), guard.APPROVED_PUBLIC_ARTWORK[path]
+        )
+        self.assertTrue(guard.approved_public_artwork(data, path))
+        self.assertEqual(guard.audit_paths([path], ROOT), {})
+
+    def test_changed_artwork_is_not_exempt(self):
+        path = "assets/omarchy-ssh-guard-overview.webp"
+        data = bytearray((ROOT / path).read_bytes())
+        data[-1] ^= 1
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "assets").mkdir()
+            (root / path).write_bytes(data)
+            self.assertIn("unscannable binary data", guard.audit_paths([path], root)[path])
+
+    def test_branding_artwork_at_wrong_path_is_not_exempt(self):
+        data = (ROOT / "assets/omarchy-ssh-guard-overview.webp").read_bytes()
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "unreviewed.webp").write_bytes(data)
+            self.assertIn("unscannable binary data",
+                          guard.audit_paths(["unreviewed.webp"], root)["unreviewed.webp"])
+
+    def test_historical_public_artwork_accepted_by_digest(self):
+        data = (ROOT / "assets/omarchy-ssh-guard-overview.webp").read_bytes()
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            def git(*args):
+                return subprocess.run(
+                    ["git", "-C", str(root), *args],
+                    check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                ).stdout.decode().strip()
+            git("init", "-q")
+            git("config", "user.name", "Synthetic Test")
+            git("config", "user.email", "tests@example.org")
+            git("commit", "--allow-empty", "-qm", "baseline")
+            base = git("rev-parse", "HEAD")
+            (root / "assets").mkdir()
+            (root / "assets/omarchy-ssh-guard-overview.webp").write_bytes(data)
+            git("add", "assets/omarchy-ssh-guard-overview.webp")
+            git("commit", "-qm", "reviewed public artwork")
+            self.assertEqual(guard.introduced_history_findings(base, git("rev-parse", "HEAD"), root), {})
 
     def test_unknown_binary_fails_closed(self):
         with tempfile.TemporaryDirectory() as td:
