@@ -387,7 +387,7 @@ class RecoveryFaultMatrix(unittest.TestCase):
         self.assertEqual(POWER_CASES_EXECUTED, len(cases))
 
     def test_27_process_restart_and_unsynced_power_outcomes_differ(self):
-        for power, retain, terminal in ((False, False, Phase.COMPLETED), (True, False, Phase.ROLLED_BACK), (True, True, Phase.COMPLETED)):
+        for power, retain, terminal in ((False, False, Phase.RECOVERY_BLOCKED), (True, False, Phase.ROLLED_BACK), (True, True, Phase.COMPLETED)):
             with self.subTest(power=power, retain=retain):
                 world, controller = self.pending()
                 with injected(world, "publish:decision:after_replace", "terminate"):
@@ -395,6 +395,8 @@ class RecoveryFaultMatrix(unittest.TestCase):
                 world.restart(power=power, retain_rename=retain)
                 result = Controller(world).execute("reconcile")
                 self.assertEqual(result.phase, terminal)
+                if not power:
+                    self.assertFalse(result.timer_cancelled)
                 self.assert_truth(world, result)
 
     def test_28_terminal_phase_cannot_hide_reactivated_timer(self):
@@ -612,6 +614,117 @@ class RecoveryFaultMatrix(unittest.TestCase):
                 self.assertIsNone(world.disk.read(current._key("state")))
                 self.assertFalse(result.timer_cancelled)
                 self.assertEqual(world.firewall.snapshot(), ("baseline",) * 2)
+
+
+    def test_49_unhashable_phase_returns_blocked(self):
+        for bad in ([], {"invalid": "object"}):
+            with self.subTest(bad=repr(bad)):
+                world, controller = self.pending()
+                state = world.disk.read(controller._key("state"))
+                state["phase"] = bad
+                world.disk.visible[controller._key("state")] = sealed(state)
+                self.assertEqual(controller.execute("reconcile").phase, Phase.RECOVERY_BLOCKED)
+
+    def test_50_unsynced_commit_blocks_until_power_outcome(self):
+        world, controller = self.pending()
+        with injected(world, "publish:decision:after_replace", "terminate"):
+            with self.assertRaises(Terminated):
+                controller.execute("decide", approval=approval(controller))
+        world.restart()
+        uncertain = controller.execute("reconcile")
+        self.assertEqual(uncertain.phase, Phase.RECOVERY_BLOCKED)
+        self.assertFalse(uncertain.timer_cancelled)
+        self.assertEqual(world.firewall.restores, 0)
+        self.assertEqual(world.firewall.snapshot(), ("restricted:synthetic-run-a",) * 2)
+        for retain, terminal in ((False, Phase.ROLLED_BACK), (True, Phase.COMPLETED)):
+            with self.subTest(retain=retain):
+                # Rebuild identical unsynced publication in each independent world.
+                w, c = self.pending()
+                with injected(w, "publish:decision:after_replace", "terminate"):
+                    with self.assertRaises(Terminated):
+                        c.execute("decide", approval=approval(c))
+                w.restart(power=True, retain_rename=retain)
+                self.assertEqual(c.execute("reconcile").phase, terminal)
+
+    def test_51_concurrent_commit_and_rollback_cannot_interleave(self):
+        world, controller = self.pending()
+        responses = []
+        with injected(world, "publish:decision:before_write",
+                      action=lambda w: responses.append(Controller(w).execute("recover"))):
+            result = controller.execute("decide", approval=approval(controller))
+        self.assertEqual(len(responses), 1)
+        self.assertEqual(responses[0].code, "CONCURRENT_EVENT_BLOCKED")
+        self.assertEqual(result.phase, Phase.COMPLETED)
+        self.assertEqual(world.firewall.restores, 0)
+
+    def test_52_external_firewall_drift_blocks_first_restriction(self):
+        for boundary in ("timer:observe:before_mutation", "firewall:before_restrict"):
+            for image in ("live", "persisted"):
+                with self.subTest(boundary=boundary, image=image):
+                    world = World(); controller = Controller(world)
+                    controller.execute("prepare"); controller.execute("arm")
+                    with injected(world, boundary, action=lambda w: setattr(w.firewall, image, "external-drift")):
+                        result = controller.execute("apply")
+                    self.assertEqual(result.phase, Phase.RECOVERY_BLOCKED)
+                    self.assertFalse(world.firewall.restrictions)
+                    self.assertEqual(world.firewall.restores, 0)
+                    self.assertEqual(controller.execute("recover").phase, Phase.RECOVERY_BLOCKED)
+
+    def test_53_restorer_lost_at_restore_effect_blocks(self):
+        world, controller = self.pending()
+        with injected(world, "firewall:before_restore",
+                      action=lambda w: setattr(w, "restorer_available", False)):
+            result = controller.execute("recover")
+        self.assertEqual(result.phase, Phase.RECOVERY_BLOCKED)
+        self.assertEqual(world.firewall.restores, 0)
+        self.assertEqual(world.firewall.snapshot(), ("restricted:synthetic-run-a",) * 2)
+
+    def test_54_commit_cleanup_does_not_need_restorer(self):
+        world, controller = self.pending()
+        with injected(world, "publish:decision:after_dir_sync", "storage"):
+            controller.execute("decide", approval=approval(controller))
+        world.restorer_available = False
+        result = controller.execute("reconcile")
+        self.assertEqual(result.phase, Phase.COMPLETED)
+        self.assertTrue(result.timer_cancelled)
+        self.assertEqual(world.firewall.restores, 0)
+
+    def test_55_clock_regression_after_accepted_sample(self):
+        world, controller = self.pending()
+        world.clock.wall += 30; world.clock.mono += 30
+        self.assertEqual(controller.execute("apply").phase, Phase.RESTRICTED_PENDING)
+        world.clock.wall -= 8; world.clock.mono -= 8
+        self.assert_rolled_back(world, controller.execute("apply"))
+
+    def test_56_timer_config_drift_is_not_terminal(self):
+        world, controller = self.pending()
+        self.assertEqual(controller.execute("recover").phase, Phase.ROLLED_BACK)
+        world.timer.config = "different-service-digest"
+        result = controller.execute("status")
+        self.assertEqual(result.phase, Phase.CLEANUP_PENDING)
+        self.assertFalse(result.timer_cancelled)
+
+    def test_57_queued_and_running_work_survives_timer_cancel(self):
+        for kind in ("queued", "running"):
+            with self.subTest(kind=kind):
+                world, controller = self.pending()
+                if kind == "queued":
+                    world.timer.queued.append("synthetic-recovery-job")
+                else:
+                    world.timer.running = True
+                result = controller.execute("recover")
+                self.assertEqual(result.phase, Phase.CLEANUP_PENDING)
+                self.assertFalse(result.timer_cancelled)
+                self.assertFalse(world.timer.active)
+                self.assertFalse(world.timer.enabled)
+                if kind == "queued":
+                    self.assertEqual(world.timer.queued, ["synthetic-recovery-job"])
+                    world.timer.queued.clear()  # Independently observed quiescence.
+                else:
+                    self.assertTrue(world.timer.running)
+                    world.timer.running = False
+                self.assert_rolled_back(world, controller.execute("recover"))
+
 
 
 if __name__ == "__main__":
