@@ -69,18 +69,26 @@ for authorized and unauthorized roles, in both families. Each must include:
 - Direct route/topology and link observations. No bridge, NAT, forwarding,
   upstream path or host SSH agent; dedicated test credentials remain private.
 - Independent witness receipt binding the precise challenge, attempted TCP/22
-  flow, observed packets, capture interval, interface and capture-loss counters.
-  The witness must demonstrate the SYN left the expected source and was seen
-  at the monitored DUT-side path. A client-signed `timeout` alone is not proof.
+  flow, observed SYN timestamp, capture **start and end** times, interface and
+  capture-loss counters. The witness must demonstrate the SYN left the expected
+  source and was seen at the monitored DUT-side path. All baseline capture
+  windows must **finish strictly before any post-change capture begins** in
+  either IP family or client role. Challenge issue times alone do not establish
+  this ordering. A client-signed `timeout` alone is not proof.
 - Authorized positive control: fresh non-multiplexed key-authenticated SSH
   login in **both** families, with server identity pinned by the client and
   independent flow observations. Baseline unauthorized source must also be
   proven capable of reaching TCP/22 before restriction.
 - Post negative outcome: on each unauthorized family, independently observe
-  a test attempt and the absence of an established TCP connection over a
-  bounded observation window. Require packet capture completeness and positive
-  liveness/control traffic. A refused handshake is not equivalent to a
-  firewall drop; record the observed result rather than inventing its cause.
+  a test SYN and the absence of an established TCP connection through the **full
+  bounded negative-observation window**. The model demands at least 8 elapsed
+  seconds after the observed SYN, a positive capture interval of no more than
+  45 seconds, and a capture end no later than challenge expiry. These limits
+  are synthetic protocol checks, **not** verification of actual wall-clock
+  elapsed time; a future real harness must independently calibrate and test
+  the timeout and packet-capture interval. Require packet capture completeness
+  and positive liveness/control traffic. A refused handshake is not equivalent
+  to a firewall drop; record the observed result rather than inventing its cause.
 - Post authorized fresh login must continue to succeed. A timeout caused by
   routing, downed service, wrong destination, key failure or packet-capture
   loss is `INCONCLUSIVE`, not proof of safely restrictive UFW policy.
@@ -111,7 +119,8 @@ evidence verifier, recovery cancellation or deployment gate.
 witnesses; missing families, missing authorized login, failed baseline controls,
 contradictory negative packets, nonexistent SYNs, lost captures, missing control
 traffic, untrusted DUT witness domain, wrong policy/source/destination, expired
-or replayed challenge, reused nonce and incorrect baseline linkage. All
+or replayed challenge, reused nonce, incorrect baseline linkage, overlapping
+baseline/post captures and prematurely finished negative observation windows. All
 fixtures use reserved documentation addresses and synthetic identifiers.
 
 No current application imports the model; no new runtime dependencies or
