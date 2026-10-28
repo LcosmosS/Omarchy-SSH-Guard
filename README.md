@@ -210,7 +210,7 @@ The default CLI and optional linter need only Python's standard library.
 
 ## SSH-HARDEN-R1 recovery safety model — PR #5
 
-[PR #5](https://github.com/LcosmosS/Omarchy-SSH-Guard/pull/5) is an **open, test-only research proposal**, not a released recovery service. R1 specifies a fail-safe recovery transaction model and exercises synthetic storage, timers, rollback states, interrupted commits and cleanup. It includes:
+[PR #5](https://github.com/LcosmosS/Omarchy-SSH-Guard/pull/5) contains a **test-only recovery research model**, not a released or deployed recovery service. R1 specifies a fail-safe recovery transaction model and exercises synthetic storage, timers, rollback states, interrupted commits and cleanup. It includes:
 
 - [Recovery state-machine specification](docs/RECOVERY_STATE_MACHINE.md)
 - [Reference model](tests/support/recovery_model.py) and [fault-injection tests](tests/test_recovery_fault_matrix.py)
@@ -250,7 +250,7 @@ Public pull requests must contain **synthetic fixtures only**. Do not commit rea
 
 - v0.1: safe read-only inspection, non-executable runbook, informational Omarchy widget.
 - Read-only v0.2 schema/linter (merged PR #3): operator-supplied local evidence, structural diagnostics only, always `NOT_VERIFIED`.
-- R1 (open PR #5): non-production recovery reference model, fault-injection tests and **28 future, unexecuted** VM cases.
+- R1 (PR #5): non-production recovery reference model, fault-injection tests and **28 future, unexecuted** VM cases.
 - Future R2: independently reviewed disposable-VM adapter and real recovery, power-cut, systemd and dual-stack network validation.
 - Possible future privileged component (not authorized): local and root-owned only after independent evidence-authority and recovery validation, with explicit user consent and fail-closed rollback.
 
