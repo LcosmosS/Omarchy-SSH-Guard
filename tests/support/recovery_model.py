@@ -333,7 +333,7 @@ class Controller:
         if lease["run_id"] != self.run_id:
             raise StaleRun()
         require(not self.w.disk.unacknowledged(self._key("state")))
-        state = self.w.disk.read(self._key("state"), confirmed=True)
+        state = self.w.disk.read(self._key("state"))
         require(type(state) is dict and set(state) == {"schema", "run_id", "plan", "phase", "disposition"})
         require(type(state["schema"]) is int and state["schema"] == 1
                 and state["run_id"] == self.run_id and state["plan"] == lease["plan"])
