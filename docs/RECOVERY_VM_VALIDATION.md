@@ -169,18 +169,49 @@
    R1_VM_FIXTURE_IDENTITY="${R1_VM_FIXTURE_IDENTITY:-$HOME/.ssh/r1-vm-fixture-id}"
    test -r "$R1_VM_KNOWN_HOSTS" && test -f "$R1_VM_KNOWN_HOSTS"
    test -r "$R1_VM_FIXTURE_IDENTITY" && test -f "$R1_VM_FIXTURE_IDENTITY"
-   ssh -4 -F /dev/null -p 22 -b 192.0.2.10 \
+   # Keep client results private; preserve both family outcomes even if one fails.
+   umask 077
+   R1_VM_CLIENT_LOGS="${R1_VM_CLIENT_LOGS:-$HOME/.local/state/omarchy-ssh-guard/vm-tests}"
+   mkdir -p -- "$R1_VM_CLIENT_LOGS"
+   test -d "$R1_VM_CLIENT_LOGS" && test -w "$R1_VM_CLIENT_LOGS"
+   R1_VM_RUN="${R1_VM_RUN:-r1-vm-v01-attempt-01}"
+   date -u +%Y-%m-%dT%H:%M:%SZ > "$R1_VM_CLIENT_LOGS/$R1_VM_RUN-ipv4-start.txt"
+   if ssh -4 -F /dev/null -p 22 -b 192.0.2.10 \
      -o IdentitiesOnly=yes -o IdentityAgent=none \
+     -o ConnectTimeout=8 -o ConnectionAttempts=1 \
      -o ControlMaster=no -o ControlPath=none -o ControlPersist=no \
      -o BatchMode=yes -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no \
      -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$R1_VM_KNOWN_HOSTS" \
-     -i "$R1_VM_FIXTURE_IDENTITY" -l guardtest 192.0.2.20 true
-   ssh -6 -F /dev/null -p 22 -b 2001:db8:1::10 \
+     -i "$R1_VM_FIXTURE_IDENTITY" -l guardtest 192.0.2.20 true \
+     > "$R1_VM_CLIENT_LOGS/$R1_VM_RUN-ipv4-stdout.txt" \
+     2> "$R1_VM_CLIENT_LOGS/$R1_VM_RUN-ipv4-stderr.txt"; then
+     R1_V4_EXIT=0
+   else
+     R1_V4_EXIT=$?
+   fi
+   date -u +%Y-%m-%dT%H:%M:%SZ > "$R1_VM_CLIENT_LOGS/$R1_VM_RUN-ipv4-end.txt"
+   printf '%s\n' "$R1_V4_EXIT" > "$R1_VM_CLIENT_LOGS/$R1_VM_RUN-ipv4-exit.txt"
+   date -u +%Y-%m-%dT%H:%M:%SZ > "$R1_VM_CLIENT_LOGS/$R1_VM_RUN-ipv6-start.txt"
+   if ssh -6 -F /dev/null -p 22 -b 2001:db8:1::10 \
      -o IdentitiesOnly=yes -o IdentityAgent=none \
+     -o ConnectTimeout=8 -o ConnectionAttempts=1 \
      -o ControlMaster=no -o ControlPath=none -o ControlPersist=no \
      -o BatchMode=yes -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no \
      -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$R1_VM_KNOWN_HOSTS" \
-     -i "$R1_VM_FIXTURE_IDENTITY" -l guardtest 2001:db8:1::20 true
+     -i "$R1_VM_FIXTURE_IDENTITY" -l guardtest 2001:db8:1::20 true \
+     > "$R1_VM_CLIENT_LOGS/$R1_VM_RUN-ipv6-stdout.txt" \
+     2> "$R1_VM_CLIENT_LOGS/$R1_VM_RUN-ipv6-stderr.txt"; then
+     R1_V6_EXIT=0
+   else
+     R1_V6_EXIT=$?
+   fi
+   date -u +%Y-%m-%dT%H:%M:%SZ > "$R1_VM_CLIENT_LOGS/$R1_VM_RUN-ipv6-end.txt"
+   printf '%s\n' "$R1_V6_EXIT" > "$R1_VM_CLIENT_LOGS/$R1_VM_RUN-ipv6-exit.txt"
+   # Classify the row only after collecting both results. Never publish these logs.
+   if (( R1_V4_EXIT != 0 || R1_V6_EXIT != 0 )); then
+     printf '%s\n' "One or more authorized-family SSH checks failed (private logs retained)" >&2
+     exit 1
+   fi
    ```
 
 3. From the unauthorized client, perform source-bound TCP probes to both DUT
@@ -289,7 +320,7 @@ receipts; publish only independently reviewed synthetic summaries/booleans later
    and persisted rule/access checks after another reboot, and evidence for every
    allowed surviving record outcome. Keep physical storage-power claims blocked
    unless separately tested under the applicable storage failure model.
-4. Require V06, V14–V19 and V27–V28 for recovery-related F05 review. Keep loaded
+4. Require V06, V14–V19, V23–V24 and V27–V28 for recovery-related F05 review. Keep loaded
    configuration, future elapse, boot binding and stale invocation evidence separate
    from a successful timer start/cancel return value.
 5. Keep private receipts, VM disks/snapshots, keys, host identifiers, packet captures,

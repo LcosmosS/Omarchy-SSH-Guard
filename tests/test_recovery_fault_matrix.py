@@ -249,8 +249,13 @@ class RecoveryFaultMatrix(unittest.TestCase):
     def test_16_mismatched_expected_transaction_id(self):
         world, controller = self.pending()
         before = deepcopy((world.disk.visible, world.timer.snapshot(), world.firewall.snapshot()))
-        with injected(world, "event:recover:entry"):
+        hook = Fault("event:recover:entry", action=lambda w: setattr(w.timer, "active", False))
+        world.fault = hook
+        try:
             result = controller.execute("recover", expected_run="synthetic-run-b")
+        finally:
+            world.fault = None
+        self.assertEqual(hook.hits, 0, "Stale expected ID must fail before the entry checkpoint")
         self.assertEqual(result.code, "STALE_IGNORED")
         self.assertEqual(before, (world.disk.visible, world.timer.snapshot(), world.firewall.snapshot()))
         self.assertFalse(result.timer_cancelled)
@@ -523,6 +528,10 @@ class RecoveryFaultMatrix(unittest.TestCase):
         self.assertEqual(imports, {"copy", "dataclasses", "enum", "hashlib", "json", "re"})
         controller = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Controller")
         self.assertFalse(any(isinstance(n, ast.Attribute) and n.attr == "durable" for n in ast.walk(controller)))
+        self.assertFalse(any(
+            isinstance(n, ast.keyword) and n.arg == "confirmed"
+            for n in ast.walk(controller)
+        ), "Controller must read visible records, not the test-only durable image")
 
     def test_40_capsule_transaction_mismatch_is_blocked(self):
         world, controller = self.pending()
@@ -729,6 +738,18 @@ class RecoveryFaultMatrix(unittest.TestCase):
                     self.assertTrue(world.timer.running)
                     world.timer.running = False
                 self.assert_rolled_back(world, controller.execute("recover"))
+
+
+    def test_58_baseline_noop_recovery_records_rollback_pending(self):
+        world = World(); controller = Controller(world)
+        self.assertEqual(controller.execute("prepare").phase, Phase.RECOVERY_DURABLE)
+        self.assertEqual(controller.execute("arm").phase, Phase.ROLLBACK_ARMED)
+        self.assertEqual(world.firewall.snapshot(), ("baseline", "baseline"))
+        result = controller.execute("recover")
+        self.assertEqual(result.phase, Phase.ROLLED_BACK)
+        self.assertIn("publish:state.ROLLBACK_PENDING:after_dir_sync", world.trace)
+        self.assertEqual(world.firewall.restores, 0)
+        self.assert_rolled_back(world, result)
 
 
 

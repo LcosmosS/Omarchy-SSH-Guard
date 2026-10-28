@@ -355,7 +355,7 @@ class Controller:
         service = self.w.disk.read(self._key("service"))
         require(canonical(service) == canonical(self._service(capsule)))
         require(not self.w.disk.unacknowledged(self._key("decision")))
-        marker = self.w.disk.read(self._key("decision"), confirmed=True)
+        marker = self.w.disk.read(self._key("decision"))
         if marker is not None:
             require(canonical(marker) == canonical({"schema": 1, "run_id": self.run_id, "plan": lease["plan"],
                                                     "approval": "synthetic-independent-review"}))
@@ -411,7 +411,7 @@ class Controller:
         return self.w.firewall.snapshot()
 
     def _result(self, phase, code, cancelled=False, committed=False):
-        state = self.w.disk.read(self._key("state"), confirmed=True)
+        state = self.w.disk.read(self._key("state"))
         return Result(phase, code, cancelled, committed, state["phase"] if state else None)
 
     def _prepare(self):
@@ -512,9 +512,9 @@ class Controller:
             return self._finish()
         actual = self._observed_firewall("recovery")
         require(set(actual) <= {capsule["baseline"], capsule["restricted"]})
+        self._record(Phase.ROLLBACK_PENDING, state["plan"], "ROLLBACK")
         if actual != (capsule["baseline"],) * 2:
             require(self.w.restorer_available)
-            self._record(Phase.ROLLBACK_PENDING, state["plan"], "ROLLBACK")
             self.w.firewall.restore(self.w, capsule)
             require(self._observed_firewall("restored") == (capsule["baseline"],) * 2)
         return self._finish()
@@ -533,9 +533,9 @@ class Controller:
     def _execute_unlocked(self, event, *, expected_run=None, approval=None, evidence=None):
         """A model event that assumes the world operation guard is held."""
         try:
-            self.w.checkpoint("event:" + event + ":entry")
             if expected_run is not None and expected_run != self.run_id:
                 return Result(Phase.RECOVERY_BLOCKED, "STALE_IGNORED")
+            self.w.checkpoint("event:" + event + ":entry")
             if event == "prepare":
                 return self._prepare()
             # All later events must establish ownership before any effects/checkpoints.
@@ -558,7 +558,7 @@ class Controller:
         except (StorageFault, AdapterFault, MetadataFault) as exc:
             # Do not manufacture completion from a readable phase after an error.
             try:
-                last = self.w.disk.read(self._key("state"), confirmed=True)
+                last = self.w.disk.read(self._key("state"))
                 phase = last.get("phase") if last and type(last.get("phase")) is str else None
             except MetadataFault:
                 phase = None

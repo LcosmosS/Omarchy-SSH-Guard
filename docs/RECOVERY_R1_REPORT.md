@@ -11,7 +11,7 @@ Next decision: **independent security review by LibertySquared**.
 
 ## Delivered files and scope
 
-Created six files; modified no existing repository files:
+The following six files were added for the R1 reference model:
 
 - `docs/RECOVERY_STATE_MACHINE.md` — fault model written before the tests,
   transition table, publication barriers, interruption policy and invariants.
@@ -24,8 +24,17 @@ Created six files; modified no existing repository files:
   harness prerequisites, 28-row matrix and exact evidence gates; all NOT RUN.
 - `docs/RECOVERY_R1_REPORT.md` — this report and independent-review checklist.
 
+After the original local R1 milestone, this public PR also modified `README.md`,
+`scripts/privacy_guard.py` and `tests/test_privacy_guard.py`, and added the
+self-contained artwork `assets/omarchy-ssh-guard-shield.svg`,
+`assets/omarchy-ssh-guard-badge.svg` and
+`assets/omarchy-ssh-guard-overview.webp`.
+The privacy guard changes allow only the digest-pinned public artwork; they are
+subject to the privacy workflow and regression tests.
+
 The read-only plugin, audit CLI, evidence linter/schema, installer, SECURITY.md,
-CODEOWNERS, privacy scanner and all three workflows match the inspected baseline.
+CODEOWNERS and all three workflows match the inspected baseline. The privacy
+scanner and its tests **did change** in this PR.
 No governance settings or branch protections were changed. Existing CI discovers
 the new tests without workflow changes. The initial worktree was clean; no local
 changes were discarded. Fetching current `main` and creating the local branch
@@ -64,10 +73,10 @@ authorize retention. Every result denies deployment authority and carries
 
 | Validation | Result | Interpretation |
 | --- | --- | --- |
-| Complete repository suite | **92 tests passed, 0 failures, 0 errors, 0 skipped** | 44 existing + 48 R1 methods |
-| R1 suite | **48 methods passed** | Includes all 26 required scenario groups and additional guards |
-| R1 grouped subtests | **500 passed** | Includes 464 simulated power-interruption cases and 36 other grouped cases; not 500 additional unittest methods |
-| Power-model matrix | **464 passed** | Commit path: 118 checkpoint occurrences × 2 outcomes = 236; rollback: 114 × 2 = 228 |
+| Initial local R1 suite (historical) | **92 passed** at initial submission | 44 existing + 48 initial R1 methods; not current PR acceptance count |
+| Initial R1 methods (historical) | **48 passed** | New T49–T58 are listed below; use final CI for current count |
+| Initial grouped cases (historical) | **500 passed** | Initial 464 modeled power cases + 36 other grouped cases, not current PR results |
+| Initial power-model matrix (historical) | **464 passed** | Historical commit/rollback checkpoint counts; final-PR count is generated dynamically and must be read from CI |
 | False-cancellation negative control | **Expected rejection observed** | Mutated controller caused ordinary T12 to fail once |
 | Missing-intent negative control | **Expected rejection observed** | Mutated controller caused both ordinary T08 subcases to fail |
 | Built-in mutation guards | **T36/T37 passed** | Independent oracles reject each bad implementation; mutations scoped to tests only |
@@ -75,7 +84,7 @@ authorize retention. Every result denies deployment authority and carries
 | Independent schema | **Meta-schema + 4 positives + 35 negatives passed** | Current CI contract; FormatChecker dependencies enabled |
 | Python syntax | **PASS** | New model and fault suite compile; no new runtime imports |
 | AST host-effect/oracle boundary | **PASS (T39)** | Model imports only copy/dataclasses/enum/hashlib/json/re; Controller never reads durable oracle |
-| Privacy working tree / introduced history | **PASS** | Existing scanner unchanged; inspect final staged/history results during local commit validation |
+| Privacy working tree / introduced history | **PASS on initial local R1 baseline** | The public PR later changed the scanner and its tests for digest-pinned artwork; check current-head Privacy CI independently |
 | Protected baseline comparison | **13 files identical** | Runtime/UI/schema/installer/security/governance paths checked byte-for-byte |
 | Whitespace check | **PASS** | No diff whitespace errors |
 | Ruff | **NOT RUN — unavailable** | Stdlib compilation and the explicit AST boundary test ran |
@@ -96,7 +105,7 @@ python3 -m py_compile tests/support/recovery_model.py tests/test_recovery_fault_
 ```
 
 Run `tests/schema_contract.py` in the development environment established by
-current CI's `requirements-schema.txt` procedure. Run the unmodified
+current CI's `requirements-schema.txt` procedure. Run the current, reviewed
 `scripts/privacy_guard.py` with trusted baseline/head revision inputs after the
 local commit. Do not run the VM protocol on the current workstation.
 
@@ -106,15 +115,15 @@ Use `Tnn` for the matching `test_nn_...` method in the inventory below.
 
 | Finding_ID | Invariant | Test_ID | Test_Result | Remaining_Limitation |
 | --- | --- | --- | --- | --- |
-| F02 | R1 recovery independence | T01–T04, T30, T39, T43, T46 | PASS; poisoned optional registry never consulted | Actual recovery executable/library dependency closure and V01–V04 NOT RUN; essential mechanism still required |
-| F04 | R2 durable preparation | T05–T08, T20–T22, T26, T37, T43, T47 | PASS; missing-intent mutant rejected | Real file/directory sync, durable code/unit enablement and firewall persistence require V05–V08/V20–V26 |
-| F03 | R3 truthful finalization | T10–T13, T28, T36, T41, T45 | PASS; false-ack mutant rejected | Actual loaded manager config, queue observations and cancellation atomicity require V09–V13/V28 |
-| F03/F04 | R4 crash consistency | T05, T07–T10, T20–T27, T33–T35, T41, T45–T46, T48 | PASS for enumerated model outcomes; explicit blocked results for corruption | Single-fault nominal path enumeration plus targeted retries is not a proof for all concurrent/multiple hardware faults; real cuts NOT RUN |
-| F05 recovery | R5 run isolation | T16–T17, T32, T40, T48 | PASS; stale calls do not change current run | No real process locks, privilege boundaries or loaded stale-job execution tested; V16–V17 required |
-| F05 recovery | R6 idempotent recovery | T18–T19, T33, T46 | PASS; interrupted restore/cleanup converges | Actual dual-family rule bytes/access and retry lifecycle require V18–V19 |
-| F05 recovery | R7 deadline enforcement | T14–T15, T23–T24, T29, T44, T47 | PASS; expired/invalid clock/timer rolls back or blocks | Kernel clocks, suspend, real next-elapse/service state and boot ordering require V06/V14–V15/V23–V24/V27 |
+| F02 | R1 recovery independence | T01–T04, T30, T39, T43, T46, T53–T54 | PASS; poisoned optional registry never consulted | Actual recovery executable/library dependency closure and V01–V04 NOT RUN; essential mechanism still required |
+| F04 | R2 durable preparation | T05–T08, T20–T22, T26, T37, T43, T47, T50 | PASS; missing-intent mutant rejected | Real file/directory sync, durable code/unit enablement and firewall persistence require V05–V08/V20–V26 |
+| F03 | R3 truthful finalization | T10–T13, T28, T36, T41, T45, T56–T57 | PASS; false-ack mutant rejected | Actual loaded manager config, queue observations and cancellation atomicity require V09–V13/V28 |
+| F03/F04 | R4 crash consistency | T05, T07–T10, T20–T27, T33–T35, T41, T45–T46, T48–T52, T58 | PASS for enumerated model outcomes; explicit blocked results for corruption | Single-fault nominal path enumeration plus targeted retries is not a proof for all concurrent/multiple hardware faults; real cuts NOT RUN |
+| F05 recovery | R5 run isolation | T16–T17, T32, T40, T48, T51 | PASS; stale calls do not change current run | No real process locks, privilege boundaries or loaded stale-job execution tested; V16–V17 required |
+| F05 recovery | R6 idempotent recovery | T18–T19, T33, T46, T52–T54, T58 | PASS; interrupted restore/cleanup converges | Actual dual-family rule bytes/access and retry lifecycle require V18–V19 |
+| F05 recovery | R7 deadline enforcement | T14–T15, T23–T24, T29, T44, T47, T55 | PASS; expired/invalid clock/timer rolls back or blocks | Kernel clocks, suspend, real next-elapse/service state and boot ordering require V06/V14–V15/V23–V24/V27 |
 | F01 boundary, excluded | R8 fail-closed authorization | T31–T32 and fixed denial in every Result | PASS for evidence rejection and explicit synthetic decision assumption | F01 is not remediated; no real independent authority implemented; production retention remains unauthorized |
-| Cross-cutting | R9 no misleading assurance | T26–T27, T39, Result assurance checks and VM ledger | PASS for model labels/claims | All live/physical gates remain NOT RUN; independent review required |
+| Cross-cutting | R9 no misleading assurance | T26–T27, T39, T49, Result assurance checks and VM ledger | PASS for model labels/claims | All live/physical gates remain NOT RUN; independent review required |
 
 ## Provisional disposition
 
@@ -170,8 +179,10 @@ or readiness for production from a test-approved synthetic decision.
   observation; exercise false ack, cleanup retries after expiry and timer reactivation.
 - [ ] Verify stale A cannot alter B, and corrupt old-run state cannot be silently
   overwritten by a new preparation.
-- [ ] Rerun 92 tests and the 464-case power-model matrix; confirm zero skips and
-  actual fault-hook hits. Reproduce both expected negative-control failures.
+- [ ] Rerun the **complete suite, R1 method inventory and power-case count on
+  the final PR head**; compare with the actual current-head CI logs (do not use
+  the historical 92-test / 464-case totals as acceptance criteria). Confirm
+  zero skips and actual fault-hook hits; reproduce both negative controls.
 - [ ] Verify the controller does not consult the durability oracle and the oracles
   do not simply reuse the controller's timer-validation functions.
 - [ ] Confirm `SyntheticApproval` is only a test assumption, no evidence authorizes
@@ -185,8 +196,9 @@ or readiness for production from a test-approved synthetic decision.
 
 ## Complete R1 method inventory
 
-Each row denotes one passing unittest method. Grouped cases are additional
-assertion contexts inside those methods, not extra method counts. All injected
+Each row denotes one R1 unittest method in the current PR proposal. Verify
+its passing status against current-head CI; grouped cases are additional
+assertion contexts, not extra method counts. All injected
 faults use an explicit label/occurrence and an exactly-once hit assertion.
 
 | Test_ID | Method | Result |
@@ -239,6 +251,17 @@ faults use an explicit label/occurrence and an exactly-once hit assertion.
 | T46 | `test_46_restore_error_preserves_pending_work_and_retries` | PASS |
 | T47 | `test_47_timer_arm_error_never_allows_restriction` | PASS |
 | T48 | `test_48_corrupt_previous_run_cannot_be_overwritten_by_prepare` | PASS |
+
+| T49 | `test_49_unhashable_phase_returns_blocked` | PASS |
+| T50 | `test_50_unsynced_commit_blocks_until_power_outcome` | PASS |
+| T51 | `test_51_concurrent_commit_and_rollback_cannot_interleave` | PASS |
+| T52 | `test_52_external_firewall_drift_blocks_first_restriction` | PASS |
+| T53 | `test_53_restorer_lost_at_restore_effect_blocks` | PASS |
+| T54 | `test_54_commit_cleanup_does_not_need_restorer` | PASS |
+| T55 | `test_55_clock_regression_after_accepted_sample` | PASS |
+| T56 | `test_56_timer_config_drift_is_not_terminal` | PASS |
+| T57 | `test_57_queued_and_running_work_survives_timer_cancel` | PASS |
+| T58 | `test_58_baseline_noop_recovery_records_rollback_pending` | PASS |
 
 ## Post-publication security-review amendments
 

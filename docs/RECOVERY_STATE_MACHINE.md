@@ -45,9 +45,11 @@ with zero hits fails. Fault classes are deliberately distinct:
 | Stale/malicious input | Wrong run ID, malformed bytes, missing capsule or invented evidence | Root compromise and hostile storage firmware remain outside the model |
 
 The storage model distinguishes temporary bytes, file-synced bytes, a visible
-renamed directory entry and acknowledged durable entries. Readers see visible
-entries, **not a durability oracle**. Tests may inspect the durable image to
-check ordering independently. Before directory-sync acknowledgement, a power
+renamed directory entry and acknowledged durable entries. The controller reads
+**visible** records and refuses an unacknowledged rename until a modeled recovery
+boundary resolves it; it cannot read a test-only durability oracle. Tests alone
+may inspect the durable image to check ordering independently. Before
+directory-sync acknowledgement, a power
 interruption may yield the old record or a fully synced new record. Tests must
 exercise both. Torn temporary data must never become the authoritative record.
 These are explicit filesystem assumptions, not facts established by naming a
@@ -139,8 +141,10 @@ queued invocation -> publish `COMPLETED` -> report completed. A cancellation ret
 code alone is insufficient. Failed or false acknowledgement retains cleanup work.
 Reordering phase persistence after cancellation alone does not solve crash safety.
 
-Rollback order: verify expected run/lease/capsule -> publish `ROLLBACK_PENDING` ->
-restore exact baseline -> observe both firewall images -> publish
+Rollback order: verify expected run/lease/capsule -> observe and reject any
+foreign firewall image -> publish `ROLLBACK_PENDING` in every uncommitted
+recovery (including baseline-already-restored no-op) -> restore exact baseline
+only if either image differs -> observe both firewall images -> publish
 `CLEANUP_PENDING(ROLLBACK)` -> cancel/observe cleanup -> publish `ROLLED_BACK`.
 Missing collector, Docker, journal parser, QML, CodeQL or unrelated packages must
 not be consulted on this path. Minimal restoration dependencies are still required;
