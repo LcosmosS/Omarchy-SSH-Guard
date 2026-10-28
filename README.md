@@ -1,4 +1,14 @@
+<div align="center">
+
+<img src="assets/omarchy-ssh-guard-shield.svg" width="180" alt="Royal-blue SSH Guard shield with diagonal gold stripe and scarlet border on midnight background" />
+
 # Omarchy SSH Guard
+
+<img src="assets/omarchy-ssh-guard-badge.svg" width="550" alt="Omarchy SSH Guard: Local-first, No backend, No telemetry" />
+
+**Local security insight. User-controlled operation. Recovery before restriction.**
+
+</div>
 
 **A local, read-only SSH/UFW/Docker exposure inspector and optional Omarchy desktop widget.**
 
@@ -26,13 +36,38 @@ An SSH service bound to `0.0.0.0:22` or `[::]:22` may be appropriately protected
 
 The goal is to help operators **inspect, document, and independently verify** their own systems without bundling hazardous one-command hardening or private deployment material.
 
+### Project goal and intent
+
+Omarchy SSH Guard is designed for transparent, locally controlled SSH security on Omarchy. The immediate purpose is to explain what the local firewall, SSH listener and optional Docker configuration show **without changing them**. Its long-term research direction is safe, independently verifiable SSH restriction backed by recoverable transactions, explicit operator consent and tested rollback.
+
+This project is **not** a hosted monitoring service, a cloud management platform, a centralized policy engine or a one-click privileged hardening tool. Stronger controls will remain separate and blocked until independent evidence and recovery tests establish their safety.
+
+### Local-first privacy and user control
+
+| Property | Current behavior |
+| --- | --- |
+| **No backend server** | No project-operated server, cloud account, remote API, login or hosted dashboard is required to run the plugin, CLI or optional offline linter. |
+| **No data harvesting** | No application telemetry, analytics, hidden upload, behavioral tracking or remote collection endpoint is implemented. |
+| **Local inspection** | The read-only CLI invokes local host utilities and returns aggregate counts and limited booleans, not a raw inventory of names, IP addresses, accounts or SSH keys. |
+| **User-controlled output** | Audit results are printed locally. The user decides whether and where to save, inspect, remove or share them. |
+| **User-controlled input and storage** | The evidence linter reads a JSON file from an explicitly supplied local path; it does not rewrite or upload it. No centralized evidence database or credential store is created. |
+| **No automatic networking** | The widget, audit CLI and linter have no application-level network-upload functionality. Cloning source, optional updates, contributing on GitHub and CI are separate development/distribution activities. |
+
+**The plugin does not run a background collection agent or upload personal system data.** Host configuration and any local evidence remain under the operator's control. External software used for installation or diagnostics (such as GitHub, an OS package manager, or Docker) may have its own independent behavior; this repository cannot guarantee their privacy practices. These statements describe the reviewed code and design, **not a formal security certification**.
+
+<p align="center">
+  <img src="assets/omarchy-ssh-guard-overview.webp" alt="Omarchy SSH Guard project overview: royal-blue and gold shield, local-only privacy principles, recovery-oriented development goals and documentation references" width="1000" />
+</p>
+
+<p align="center"><sub>Project overview graphic. Its status labels are illustrative, not a live security verdict or evidence of deployed SSH hardening.</sub></p>
+
 ## Requirements
 
 - An Omarchy 4.x desktop for the optional QML widget (validate against your exact installation).
 - Python 3.10+ and standard-library modules for the CLI.
 - `ufw` and `ss` for host firewall and listener inspection; `docker` is optional.
 - A terminal. **Do not invoke the user-installed CLI through sudo.** User-writable code should not be executed with root privileges.
-- No Python packages, accounts, GitHub tokens, network access, or SSH keys are required by the project.
+- The widget and CLI need no project account, GitHub token, runtime Internet access or SSH keys. The CLI uses Python's standard library; downloading source and running hosted CI are separate activities.
 
 ## Review and install
 
@@ -140,6 +175,12 @@ manifest.json              Omarchy plugin metadata
 BarWidget.qml              Informational bar widget
 Panel.qml                  Informational panel
 bin/omarchy-guard          Unprivileged, stdlib-only audit/plan CLI
+bin/omarchy-guard-evidence Optional, unprivileged offline evidence linter
+schemas/ssh-evidence-v2.schema.json  Reviewed evidence format
+tests/support/recovery_model.py      Test-only R1 reference model
+tests/test_recovery_fault_matrix.py  R1 synthetic fault suite
+assets/omarchy-ssh-guard-shield.svg  Self-hosted shield logo
+assets/omarchy-ssh-guard-badge.svg   Self-hosted branding badge
 scripts/check.sh           Offline test + metadata validation
 scripts/install-local.sh   Local user-level CLI copy only
 tests/test_guard.py        Deterministic parser and negative tests
@@ -151,12 +192,9 @@ CONTRIBUTING.md            Contribution and privacy rules
 
 No deployment helper, evidence collector, credentials, IP allowlist or host-specific transaction files are supplied in this version. The plugin and CLI have distinct trust boundaries; the widget never invokes a privileged process.
 
-## Proposed v0.2 evidence review
+## Read-only v0.2 evidence schema — merged PR #3
 
-The local `review/v0.2-evidence-only` proposal adds a generic evidence schema and
-an optional offline linter. The SSH-HARDEN-01b privileged candidate is **blocked
-from integration** by the [security review](docs/SECURITY_REVIEW_01B_V2.md).
-The existing plugin, CLI, installer and version remain unchanged pending review.
+[PR #3](https://github.com/LcosmosS/Omarchy-SSH-Guard/pull/3) added a generic evidence schema and optional offline linter to the repository. The linter does not change the installed v0.1.0 widget, audit CLI or installer. The SSH-HARDEN-01b privileged collector/executor remains **blocked** by the [security review](docs/SECURITY_REVIEW_01B_V2.md).
 
 From a reviewed source checkout, as an ordinary user:
 
@@ -175,6 +213,19 @@ See the [architecture and threat model](docs/ARCHITECTURE.md),
 [test report](docs/TEST_REPORT_01B_V2.md). CI also runs mandatory independent
 schema checks using development-only packages pinned in `requirements-schema.txt`.
 The default CLI and optional linter need only Python's standard library.
+
+## SSH-HARDEN-R1 recovery safety model — PR #5
+
+[PR #5](https://github.com/LcosmosS/Omarchy-SSH-Guard/pull/5) contains a **test-only recovery research model**, not a released or deployed recovery service. R1 specifies a fail-safe recovery transaction model and exercises synthetic storage, timers, rollback states, interrupted commits and cleanup. It includes:
+
+- [Recovery state-machine specification](docs/RECOVERY_STATE_MACHINE.md)
+- [Reference model](tests/support/recovery_model.py) and [fault-injection tests](tests/test_recovery_fault_matrix.py)
+- [R1 validation report](docs/RECOVERY_R1_REPORT.md) and independent review checklist
+- [Future disposable-VM protocol](docs/RECOVERY_VM_VALIDATION.md), with **all 28 VM cases NOT RUN**
+
+The R1 classification is **REFERENCE_MODEL_VALIDATED**, limited to offline synthetic behavior. Sourcery and CodeRabbit review produced further correction tests on the PR branch. It **does not** establish real UFW/systemd recovery, independent network observations, storage/power-loss durability or readiness for deployment. F02–F05 still require real integration and VM evidence, while F01 (fabricated external rejection evidence) remains a separate unresolved blocker.
+
+**PR #5 does not add a privileged executor, background agent, hosted backend, automatic firewall mutations, or deployment authority.** The v0.1.0 plugin remains read-only.
 
 ## Tests and CI
 
@@ -204,8 +255,10 @@ Public pull requests must contain **synthetic fixtures only**. Do not commit rea
 ## Roadmap
 
 - v0.1: safe read-only inspection, non-executable runbook, informational Omarchy widget.
-- Candidate v0.2: user-controlled local evidence *format and schema* with provenance and freshness checking. No automatic claims of external verification.
-- Future separate component (not included): audited, root-owned transaction executor with explicit consent, atomic rollback, independent client tests and fail-closed finalization.
+- Read-only v0.2 schema/linter (merged PR #3): operator-supplied local evidence, structural diagnostics only, always `NOT_VERIFIED`.
+- R1 (PR #5): non-production recovery reference model, fault-injection tests and **28 future, unexecuted** VM cases.
+- Future R2: independently reviewed disposable-VM adapter and real recovery, power-cut, systemd and dual-stack network validation.
+- Possible future privileged component (not authorized): local and root-owned only after independent evidence-authority and recovery validation, with explicit user consent and fail-closed rollback.
 
 **Status:** community prototype; no independent penetration test, no security guarantee and no endorsement by Omarchy.
 
@@ -221,13 +274,13 @@ Public pull requests must contain **synthetic fixtures only**. Do not commit rea
 
 The security-focused source remains **read-only**: no SSH/UFW system changes, credential handling, or privileged evidence-engine integration are added by the governance workflows.
 
-- [Code ownership](.github/CODEOWNERS) and the [ownership change log](docs/CODEOWNERS_LOG.md) identify the repository owner for review; this is **not independent approval** until a second eligible reviewer is onboarded.
+- [Code ownership](.github/CODEOWNERS) and the [ownership change log](docs/CODEOWNERS_LOG.md) list both `@LcosmosS` and `@LibertySquared`; the active main-branch ruleset requires independent approval.
 - [Privacy guard](.github/workflows/privacy.yml) checks committed text and paths against common private-artifact, token, local-address and personal-email patterns. It is heuristic and may miss other sensitive data. Do not upload operational backups or keys.
 - [CodeQL](.github/workflows/codeql.yml) analyzes Python and GitHub Actions workflows on PRs, main-branch pushes and a schedule. **QML is not covered**.
 - [Dependabot](.github/dependabot.yml) proposes GitHub Actions updates.
-- [Disabled ruleset review](docs/RULESET_REVIEW.md) documents a staged activation plan and the sole-maintainer approval deadlock.
+- [Ruleset review](docs/RULESET_REVIEW.md) documents staged activation; the ruleset now actively requires required checks, code-owner review and squash merging to `main`.
 
-The governance CI does not attest to a secure deployed firewall, prove network isolation, or unblock any previously rejected privileged integration. The protected-branch ruleset must be configured and activated separately in GitHub settings after the checks, eligible reviewers and entitlement are validated.
+GitHub CI is a **remote source-development safeguard**, not a runtime backend or telemetry service. Passing it does not attest to a deployed firewall, prove network isolation or unblock rejected privileged integration.
 
 ## License
 

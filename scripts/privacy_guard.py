@@ -17,6 +17,23 @@ ROOT = Path(__file__).resolve().parents[1]
 MAX_FILE_BYTES = 2 * 1024 * 1024
 MAX_HISTORY_OBJECTS = 8000
 MAX_HISTORY_BYTES = 32 * 1024 * 1024
+
+# Public, manually reviewed artwork is allowed only at this exact tracked
+# location and with exactly these bytes. This does not permit arbitrary images,
+# operational screenshots, or private artifacts. Git history checks can match
+# the digest independently of the historical path.
+APPROVED_PUBLIC_ARTWORK = {
+    "assets/omarchy-ssh-guard-overview.webp": "814a3a854184d914cc0578d912317f5d33773426e7c8ae5653b0770ca4acaad6",
+}
+
+
+def approved_public_artwork(data: bytes, path: str | None = None) -> bool:
+    if len(data) > MAX_FILE_BYTES or data[:4] != b"RIFF" or data[8:12] != b"WEBP":
+        return False
+    signature = hashlib.sha256(data).hexdigest()
+    if path is not None:
+        return APPROVED_PUBLIC_ARTWORK.get(path) == signature
+    return signature in APPROVED_PUBLIC_ARTWORK.values()
 DOC_NETS = [
     ipaddress.ip_network("192.0.2.0/24"),
     ipaddress.ip_network("198.51.100.0/24"),
@@ -126,10 +143,15 @@ def audit_paths(paths: list[str], root: Path = ROOT) -> dict[str, list[str]]:
             try:
                 data = file.read_bytes()
                 if b"\x00" in data:
-                    errors.append("unscannable binary data")
+                    if not approved_public_artwork(data, path):
+                        errors.append("unscannable binary data")
                 else:
-                    errors.extend(content_findings(data.decode("utf-8")))
-            except (UnicodeDecodeError, OSError):
+                    try:
+                        errors.extend(content_findings(data.decode("utf-8")))
+                    except UnicodeDecodeError:
+                        if not approved_public_artwork(data, path):
+                            errors.append("unreadable or non-UTF8 content")
+            except OSError:
                 errors.append("unreadable or non-UTF8 content")
         if errors:
             issues[path] = sorted(set(errors))
@@ -209,13 +231,15 @@ def introduced_history_findings(base: str, head: str, root: Path = ROOT) -> dict
             raise ValueError("Git blob length mismatch")
         try:
             if b"\x00" in content:
-                findings[key] = ["unscannable historical binary data"]
+                if not approved_public_artwork(content):
+                    findings[key] = ["unscannable historical binary data"]
             else:
                 issues = content_findings(content.decode("utf-8"))
                 if issues:
                     findings[key] = issues
         except UnicodeDecodeError:
-            findings[key] = ["unreadable historical UTF-8 content"]
+            if not approved_public_artwork(content):
+                findings[key] = ["unreadable historical UTF-8 content"]
     return findings
 
 def main() -> int:
