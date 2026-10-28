@@ -8,7 +8,7 @@ CLASSIFICATION = "R2_DESIGN_ONLY"
 REFERENCE = "docs/RECOVERY_VM_VALIDATION.md"
 ROOT_KEYS = frozenset({"schema", "classification", "reference", "vm_executed", "deployment_authorized", "cases"})
 ROW_KEYS = frozenset({"id", "initial_state", "fault", "expected_recovery", "required_observation", "pass_fail_rule", "status"})
-ID_PATTERN = re.compile(r"V(?:0[1-9]|1[0-9]|2[0-8])\\Z")
+ID_PATTERN = re.compile(r"V(?:0[1-9]|1[0-9]|2[0-8])\Z")
 
 
 class ContractError(ValueError):
@@ -66,7 +66,7 @@ def r1_rows(source):
     """Read only the six-column canonical R1 Markdown table."""
     result = []
     for line in source.splitlines():
-        if not re.match(r"^\\| V(?:0[1-9]|1[0-9]|2[0-8]) \\|", line):
+        if not re.match(r"^\| V(?:0[1-9]|1[0-9]|2[0-8]) \|", line):
             continue
         parts = [part.strip() for part in line.strip().strip("|").split("|")]
         if len(parts) != 6:
