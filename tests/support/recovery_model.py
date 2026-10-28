@@ -162,6 +162,8 @@ class MemoryDisk:
 
     def read(self, key, *, confirmed=False):
         """Read visible or acknowledged modeled bytes; no real fsync assurance."""
+        if confirmed and key in self.visible and self.visible.get(key) != self.durable.get(key):
+            raise MetadataFault("Visible and acknowledged model bytes disagree")
         return unseal((self.durable if confirmed else self.visible).get(key))
 
     def unacknowledged(self, key):

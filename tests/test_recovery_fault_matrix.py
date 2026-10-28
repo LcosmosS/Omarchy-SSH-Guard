@@ -306,6 +306,11 @@ class RecoveryFaultMatrix(unittest.TestCase):
                     result = controller.execute("apply")
                 self.assertEqual(result.code, "IO_UNCERTAIN")
                 self.assertFalse(world.firewall.restrictions)
+                if stage == "before_dir_sync":
+                    # The unsynced rename may have two permitted outcomes after a cut;
+                    # it is not yet safe to claim durable recovery without one.
+                    self.assertEqual(controller.execute("reconcile").phase, Phase.RECOVERY_BLOCKED)
+                    world.restart(power=True, retain_rename=False)
                 self.assert_rolled_back(world, controller.execute("reconcile"))
 
     def test_22_partial_record_never_becomes_authoritative(self):
