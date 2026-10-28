@@ -9,6 +9,7 @@ POLICY = "f" * 64
 
 
 def scenario():
+    """Build eight synthetic dual-stack witness slots with ordered capture windows."""
     challenges, traces = [], []
     for stage in ("baseline", "post"):
         for role in ("authorized", "unauthorized"):
@@ -24,20 +25,26 @@ def scenario():
                               f"baseline-{suffix}" if stage == "post" else None)
                 responses = role == "authorized" or stage == "baseline"
                 t = ObserverTrace(cid, RUN, POLICY, c.nonce, stage, role, family,
-                                  source, dest, 22, 120, "independent-vm-monitor",
+                                  source, dest, 22, 120 if stage == "baseline" else 150,
+                                  115 if stage == "baseline" else 145,
+                                  130 if stage == "baseline" else 165,
+                                  "independent-vm-monitor",
                                   True, responses, role == "authorized", True, 0, True)
                 challenges.append(c); traces.append(t)
     return challenges, traces
 
 
 class F01AuthorityReferenceTests(unittest.TestCase):
-    def check_blocked(self, alter):
+    def check_blocked(self, alter, expected_reason=None):
+        """Require fail-closed outcomes for a mutated synthetic evidence matrix."""
         cs, ts = scenario()
         cs, ts, kwargs = alter(cs, ts)
         result = evaluate(cs, ts, run=RUN, policy=POLICY, **kwargs)
         self.assertFalse(result.model_consistent)
         self.assertEqual(result.verdict, "NOT_VERIFIED")
         self.assertFalse(result.deployment_authorized)
+        if expected_reason is not None:
+            self.assertEqual(result.reason, expected_reason)
 
     def test_good_synthetic_matrix_still_denies_real_verification(self):
         cs, ts = scenario()
@@ -101,7 +108,75 @@ class F01AuthorityReferenceTests(unittest.TestCase):
     def test_wrong_baseline_link(self):
         self.check_blocked(lambda cs, ts: ([replace(c, baseline_id="unrelated") if c.stage == "post" else c for c in cs], ts, {}))
 
+    def test_baseline_capture_must_finish_before_any_post_capture(self):
+        """A late IPv6 baseline cannot overlap an IPv4 post attempt."""
+        self.check_blocked(
+            lambda cs, ts: (cs, [replace(t, window_started_at=145, observed_at=150,
+                                         window_ended_at=160)
+                                 if (t.stage, t.role, t.family) == ("baseline", "authorized", 6)
+                                 else t for t in ts], {}),
+            expected_reason="post-observed-before-baseline-complete")
+
+    def test_post_syn_before_baseline_completion_is_rejected(self):
+        """A post SYN observed early does not substitute for baseline-before-post."""
+        self.check_blocked(
+            lambda cs, ts: (cs, [replace(t, window_started_at=110, observed_at=115,
+                                         window_ended_at=130)
+                                 if (t.stage, t.role, t.family) == ("post", "authorized", 4)
+                                 else t for t in ts], {}),
+            expected_reason="post-observed-before-baseline-complete")
+
+    def test_baseline_and_post_windows_cannot_touch(self):
+        """Equal baseline completion and post capture start is not strictly ordered."""
+        self.check_blocked(
+            lambda cs, ts: (cs, [replace(t, window_ended_at=145)
+                                 if (t.stage, t.role, t.family) == ("baseline", "authorized", 4)
+                                 else t for t in ts], {}),
+            expected_reason="post-observed-before-baseline-complete")
+
+    def test_negative_probe_must_wait_full_response_window(self):
+        """A SYN and a one-second capture cannot establish nonreachability."""
+        self.check_blocked(
+            lambda cs, ts: (cs, [replace(t, window_ended_at=151)
+                                 if (t.stage, t.role, t.family) == ("post", "unauthorized", 4)
+                                 else t for t in ts], {}),
+            expected_reason="negative-observation-window-incomplete")
+
+    def test_zero_elapsed_negative_probe_is_rejected(self):
+        """An immediately completed negative capture is not a negative observation."""
+        self.check_blocked(
+            lambda cs, ts: (cs, [replace(t, window_ended_at=t.observed_at)
+                                 if (t.stage, t.role, t.family) == ("post", "unauthorized", 6)
+                                 else t for t in ts], {}),
+            expected_reason="negative-observation-window-incomplete")
+
+    def test_negative_capture_outside_challenge_expiry_is_rejected(self):
+        """A capture may not extend past the issued challenge's expiry."""
+        self.check_blocked(
+            lambda cs, ts: (cs, [replace(t, window_started_at=175, observed_at=180,
+                                         window_ended_at=201)
+                                 if (t.stage, t.role, t.family) == ("post", "unauthorized", 4)
+                                 else t for t in ts], {}),
+            expected_reason="unreliable-or-unobserved-probe")
+
+    def test_too_long_capture_window_is_rejected(self):
+        """Even an allegedly complete capture needs a bounded observation interval."""
+        self.check_blocked(
+            lambda cs, ts: (cs, [replace(t, window_ended_at=170)
+                                 if (t.stage, t.role, t.family) == ("baseline", "authorized", 4)
+                                 else t for t in ts], {}),
+            expected_reason="unreliable-or-unobserved-probe")
+
+    def test_boolean_capture_timestamp_is_rejected(self):
+        """Python bool must not satisfy the synthetic integer time contract."""
+        self.check_blocked(
+            lambda cs, ts: (cs, [replace(t, window_started_at=True)
+                                 if (t.stage, t.role, t.family) == ("baseline", "authorized", 4)
+                                 else t for t in ts], {}),
+            expected_reason="unreliable-or-unobserved-probe")
+
     def test_report_replacement_never_changes_model_verdict(self):
+        """Unsigned, forged and purportedly signed claims never grant authority."""
         cs, ts = scenario()
         for report in ({"result": "connected", "signature": "forged"}, {"result": "timeout", "signature": "valid"}):
             result = evaluate(cs, ts, run=RUN, policy=POLICY, client_claims=(report,))
