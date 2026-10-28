@@ -9,6 +9,11 @@ import ipaddress
 import re
 
 
+# Model bounds only; actual probe/capture time must be witnessed in the VM.
+MIN_NEGATIVE_OBSERVATION_SECONDS = 8
+MAX_CAPTURE_WINDOW_SECONDS = 45
+
+
 @dataclass(frozen=True)
 class Challenge:
     run: str
@@ -43,7 +48,9 @@ class ObserverTrace:
     source: str
     destination: str
     port: int
-    observed_at: int
+    observed_at: int  # Observed SYN timestamp, not receipt issuance
+    window_started_at: int  # Independent capture started
+    window_ended_at: int  # Independent capture ended
     observer_domain: str
     syn_seen: bool
     tcp_response_seen: bool
@@ -117,8 +124,11 @@ def evaluate(challenges, traces, *, run, policy, observer_domain="independent-vm
                 t.destination, t.port) != (c.run, c.policy, c.nonce, c.stage,
                                           c.role, c.family, c.source, c.destination, c.port):
             return blocked("witness-not-bound-to-challenge")
-        if (t.observer_domain != observer_domain or type(t.observed_at) is not int
-                or not c.issued <= t.observed_at <= c.expires
+        if (t.observer_domain != observer_domain
+                or any(type(value) is not int for value in
+                       (t.window_started_at, t.observed_at, t.window_ended_at))
+                or not c.issued <= t.window_started_at <= t.observed_at <= t.window_ended_at <= c.expires
+                or not 0 < t.window_ended_at - t.window_started_at <= MAX_CAPTURE_WINDOW_SECONDS
                 or not t.capture_complete or type(t.capture_drops) is not int
                 or t.capture_drops != 0 or not t.independent_control_ok or not t.syn_seen):
             return blocked("unreliable-or-unobserved-probe")
@@ -130,5 +140,14 @@ def evaluate(challenges, traces, *, run, policy, observer_domain="independent-vm
                 return blocked("unauthorized-baseline-tcp-not-seen")
         elif t.tcp_response_seen or t.ssh_authenticated:
             return blocked("negative-probe-contradicted")
+        elif t.window_ended_at - t.observed_at < MIN_NEGATIVE_OBSERVATION_SECONDS:
+            # No negative finding before the entire bounded response window passes.
+            return blocked("negative-observation-window-incomplete")
+    # Every baseline capture must be complete BEFORE the first post capture starts.
+    # Comparing challenge issuance or SYN timestamps alone would allow overlap.
+    baseline_ends = [t.window_ended_at for t in traces if t.stage == "baseline"]
+    post_starts = [t.window_started_at for t in traces if t.stage == "post"]
+    if max(baseline_ends) >= min(post_starts):
+        return blocked("post-observed-before-baseline-complete")
     # This result does NOT indicate authentic attestations or packet truth.
     return Decision(True, "synthetic-witness-matrix-consistent")
