@@ -14,6 +14,11 @@ jobs:
       - name: Run offline unit tests
         run: |
           python3 -m unittest discover -s tests -v
-          python3 -m py_compile bin/omarchy-guard
+          python3 -m py_compile bin/omarchy-guard bin/omarchy-guard-evidence
           python3 -m json.tool manifest.json > /dev/null
           bash -n scripts/check.sh scripts/install-local.sh
+      - name: Validate evidence schema independently
+        run: |
+          python3 -m venv "$RUNNER_TEMP/guard-schema-venv"
+          "$RUNNER_TEMP/guard-schema-venv/bin/python" -m pip install -r requirements-schema.txt
+          "$RUNNER_TEMP/guard-schema-venv/bin/python" -B tests/schema_contract.py

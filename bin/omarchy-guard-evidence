@@ -1,0 +1,189 @@
+#!/usr/bin/env python3
+"""Offline, unprivileged evidence linting. No keys, probes, journal or deployment API."""
+import argparse
+from datetime import datetime, timezone
+import ipaddress
+import json
+import math
+import os
+from pathlib import Path
+import re
+import stat
+import uuid
+
+MAX_BYTES = 262144
+MAX_DEPTH = 32
+SCHEMA = Path(__file__).resolve().parents[1] / "schemas/ssh-evidence-v2.schema.json"
+
+
+class Invalid(ValueError):
+    """Messages are fixed strings; never echo private input."""
+
+
+def need(condition):
+    if not condition:
+        raise Invalid("Invalid evidence")
+
+
+def unique(pairs):
+    result = {}
+    for key, value in pairs:
+        need(key not in result)
+        result[key] = value
+    return result
+
+
+def nonfinite(_):
+    raise Invalid("Invalid JSON number")
+
+
+def read_json(path):
+    """Pin every directory with openat; refuse symlinks, devices, FIFOs and oversize data."""
+    path = Path(path)
+    need(".." not in path.parts)
+    parts = path.parts[1:] if path.is_absolute() else path.parts
+    need(bool(parts))
+    directory = os.open("/" if path.is_absolute() else ".", os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for part in parts[:-1]:
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
+            os.close(directory)
+            directory = child
+        fd = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+        try:
+            info = os.fstat(fd)
+            need(stat.S_ISREG(info.st_mode) and info.st_size <= MAX_BYTES)
+            with os.fdopen(fd, "rb", closefd=False) as stream:
+                data = stream.read(MAX_BYTES + 1)
+            need(len(data) <= MAX_BYTES)
+        finally:
+            os.close(fd)
+    finally:
+        os.close(directory)
+    # Bound nesting before the recursive JSON decoder sees attacker-controlled data.
+    depth, quoted, escaped = 0, False, False
+    for byte in data:
+        if quoted:
+            if escaped:
+                escaped = False
+            elif byte == 92:
+                escaped = True
+            elif byte == 34:
+                quoted = False
+        elif byte == 34:
+            quoted = True
+        elif byte in (91, 123):
+            depth += 1
+            need(depth <= MAX_DEPTH)
+        elif byte in (93, 125):
+            depth -= 1
+    return json.loads(data.decode("utf-8"), object_pairs_hook=unique, parse_constant=nonfinite)
+
+
+def utc(value):
+    need(type(value) is str and re.fullmatch(
+        r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?(?:Z|\+00:00)", value))
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+
+
+def validate(value, schema, rule=None, depth=0):
+    """Restricted validator for this reviewed schema only; no caller-supplied schemas."""
+    need(depth <= MAX_DEPTH)
+    rule = schema if rule is None else rule
+    known = {"$schema", "$id", "title", "description", "$defs", "$ref", "oneOf", "type",
+             "const", "enum", "properties", "required", "additionalProperties", "items",
+             "minItems", "maxItems", "minLength", "maxLength", "minimum", "maximum", "pattern", "format"}
+    need(set(rule) <= known)
+    if "$ref" in rule:
+        need(set(rule) == {"$ref"} and rule["$ref"] in {"#/$defs/" + k for k in schema["$defs"]})
+        return validate(value, schema, schema["$defs"][rule["$ref"].split("/")[-1]], depth + 1)
+    if "oneOf" in rule:
+        successes = 0
+        for variant in rule["oneOf"]:
+            try:
+                validate(value, schema, variant, depth + 1)
+                successes += 1
+            except (Invalid, ValueError):
+                pass
+        need(successes == 1)
+    if "const" in rule:
+        need(type(value) is type(rule["const"]) and value == rule["const"])
+    if "enum" in rule:
+        need(any(type(value) is type(item) and value == item for item in rule["enum"]))
+    if "type" in rule:
+        types = rule["type"] if type(rule["type"]) is list else [rule["type"]]
+        kinds = {"object": dict, "array": list, "string": str, "integer": int, "boolean": bool, "null": type(None)}
+        need(any(type(value) is kinds[kind] for kind in types))
+    if value is None:
+        return
+    if type(value) is dict:
+        properties = rule.get("properties", {})
+        need(set(rule.get("required", [])) <= value.keys())
+        if rule.get("additionalProperties") is False:
+            need(value.keys() <= properties.keys())
+        for key, item in value.items():
+            if key in properties:
+                validate(item, schema, properties[key], depth + 1)
+    elif type(value) is list:
+        need(rule.get("minItems", 0) <= len(value) <= rule.get("maxItems", MAX_BYTES))
+        for item in value:
+            validate(item, schema, rule.get("items", {}), depth + 1)
+    elif type(value) is int:
+        need(rule.get("minimum", -math.inf) <= value <= rule.get("maximum", math.inf))
+    elif type(value) is str:
+        need(rule.get("minLength", 0) <= len(value) <= rule.get("maxLength", MAX_BYTES))
+        if "pattern" in rule:
+            need(re.search(rule["pattern"], value) is not None)
+        fmt = rule.get("format")
+        if fmt == "date-time":
+            utc(value)
+        elif fmt == "uuid":
+            need(str(uuid.UUID(value)) == value)
+        elif fmt in ("ipv4", "ipv6"):
+            address = ipaddress.ip_address(value)
+            need("%" not in value and str(address) == value and address.version == (4 if fmt == "ipv4" else 6))
+        else:
+            need(fmt is None)
+
+
+def freshness(value, now):
+    """Local clock diagnostic only; cannot establish when a test really happened."""
+    kind = value["kind"]
+    if kind == "challenge":
+        start, end = utc(value["issued_at"]), utc(value["expires_at"])
+        return 0 < end - start <= 900 and start - 5 <= now < end
+    if kind == "report":
+        c = value["challenge"]
+        start, end = utc(value["started_at"]), utc(value["completed_at"])
+        return (freshness(c, now) and utc(c["issued_at"]) - 5 <= start <= end <= utc(c["expires_at"])
+                and end - start <= 45 and end <= now + 5)
+    return (now - 3600 <= utc(value["created_at"]) <= now + 5
+            and all(freshness(report, now) for report in value["authorized"] + value["unauthorized"]))
+
+
+def inspect(value, schema, now=None):
+    validate(value, schema)
+    current = datetime.now(timezone.utc).timestamp() if now is None else now
+    return {"structure": "VALID", "kind": value["kind"],
+            "local_time_window": "CURRENT" if freshness(value, current) else "STALE_OR_FUTURE",
+            "signature": "NOT_CHECKED", "journal": "NOT_CHECKED", "run_binding": "NOT_CHECKED",
+            "external_reachability": "NOT_VERIFIED", "deployment_authorized": False, "verdict": "NOT_VERIFIED"}
+
+
+def cli():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("input", help="Private local JSON file; contents are never printed")
+    args = parser.parse_args()
+    if os.geteuid() == 0:
+        parser.error("Run this source-checkout linter as an unprivileged user")
+    try:
+        result = inspect(read_json(args.input), read_json(SCHEMA))
+    except (OSError, ValueError, TypeError, KeyError, RecursionError, OverflowError):
+        print(json.dumps({"structure": "INVALID", "verdict": "NOT_VERIFIED", "deployment_authorized": False}))
+        return 2
+    print(json.dumps(result, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(cli())
