@@ -238,3 +238,16 @@ timers catch up missed activations but do not restart an already active service;
 see [systemd.timer](https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html).
 The application-level reconciliation policy above is a design choice derived
 from these constraints, not a guarantee made by those documents.
+
+## Post-review R1 reference-model boundaries
+
+A visible rename lacking acknowledged directory synchronization is not a
+durable commit. The model blocks uncertain in-flight markers until a modeled
+recovery boundary resolves their survival. Synthetic controller operations
+are serialized with an in-memory world guard; it is not a real OS lock.
+Timer cancellation, running-service quiescence and queued-job draining are
+distinct observations. The model also rechecks baseline firewall images at
+restriction, declines external drift, verifies timer configuration in the
+terminal state, and detects same-boot regression from previously accepted
+clock samples. These are reference-model properties only, not verified
+systemd, filesystem, UFW or power-loss safety guarantees.

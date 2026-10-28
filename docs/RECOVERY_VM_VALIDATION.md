@@ -79,6 +79,7 @@
    and verify the independently reviewed driver is present. Stop if it is absent:
 
    ```bash
+   set -euo pipefail
    umask 077
    R1_PRIVATE=/run/r1-private
    R1_VM_DRIVER=/opt/r1-vm/recovery-fixture
@@ -87,7 +88,20 @@
    install -d -m 700 "$R1_PRIVATE"
    ```
 
-2. Use an independently verified VM fixture to enable UFW IPv4/IPv6, permit
+2. Before each disruptive test, configure a protected evidence sink on the
+   **independent hypervisor**, outside the DUT and its snapshot/revert domain.
+   `/run/r1-private` is volatile scratch, never the sole record of pre-fault
+   state. Transfer completed pre-fault receipts, checkpoint markers, manifests
+   and hashes through a reviewed authenticated guest-to-hypervisor mechanism or
+   hypervisor serial capture. Verify receipt bytes, hashes and run identity
+   **before** causing reboot, disk fault or `virsh destroy`. Abort and mark BLOCKED
+   if host-side preservation fails. After restart, collect independent post-fault
+   records and correlate by run/attempt/checkpoint. This is mandatory for
+   V24, V26 and the reboot/reachability re-checks. V07 is a process-termination
+   test with no reboot and need not use the reboot-specific retention path, but
+   its private receipts still require normal preservation. Do not add a recovery
+   collector or publish private records to Git.
+3. Use an independently verified VM fixture to enable UFW IPv4/IPv6, permit
    baseline TCP/22 from both synthetic clients, preserve console recovery and
    allow the chosen source-bound reachability controls. Configure the restriction
    to permit only the authorized fixture client in each family. Do not introduce
@@ -102,6 +116,8 @@
 6. Run prepare and arm only inside the DUT experiment console:
 
    ```bash
+   set -euo pipefail
+   test -x "$R1_VM_DRIVER"
    "$R1_VM_DRIVER" prepare --run "$R1_RUN" --fixture documentation-dual-stack
    "$R1_VM_DRIVER" arm --run "$R1_RUN"
    "$R1_VM_DRIVER" status --run "$R1_RUN" --json > "$R1_PRIVATE/status.json"
@@ -147,12 +163,20 @@
    stdout/stderr to client-private files, and independently record start/end times:
 
    ```bash
+   set -euo pipefail
+   # Client-side private fixture files; no identities or fingerprints in Git.
+   R1_VM_KNOWN_HOSTS="${R1_VM_KNOWN_HOSTS:-$HOME/.ssh/r1-vm-fixture-known-hosts}"
+   R1_VM_FIXTURE_IDENTITY="${R1_VM_FIXTURE_IDENTITY:-$HOME/.ssh/r1-vm-fixture-id}"
+   test -r "$R1_VM_KNOWN_HOSTS" && test -f "$R1_VM_KNOWN_HOSTS"
+   test -r "$R1_VM_FIXTURE_IDENTITY" && test -f "$R1_VM_FIXTURE_IDENTITY"
    ssh -4 -F /dev/null -p 22 -b 192.0.2.10 \
+     -o IdentitiesOnly=yes -o IdentityAgent=none \
      -o ControlMaster=no -o ControlPath=none -o ControlPersist=no \
      -o BatchMode=yes -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no \
      -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$R1_VM_KNOWN_HOSTS" \
      -i "$R1_VM_FIXTURE_IDENTITY" -l guardtest 192.0.2.20 true
    ssh -6 -F /dev/null -p 22 -b 2001:db8:1::10 \
+     -o IdentitiesOnly=yes -o IdentityAgent=none \
      -o ControlMaster=no -o ControlPath=none -o ControlPersist=no \
      -o BatchMode=yes -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no \
      -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$R1_VM_KNOWN_HOSTS" \

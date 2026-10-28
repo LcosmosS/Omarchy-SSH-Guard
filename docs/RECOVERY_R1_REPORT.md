@@ -4,7 +4,9 @@ Classification: **R1_REFERENCE_MODEL_VALIDATED**.
 
 Branch: `security/recovery-gate-r1`. Baseline: `de42d91` from current `origin/main`.
 Identify the completed artifact revision by this report's containing local Git
-commit; the final handoff supplies that SHA. No remote publication is part of R1.
+commit; the final handoff supplies that SHA. The branch was subsequently
+published for review as PR #5 (`security/recovery-gate-r1`). Publication
+does not authorize merge, release, or deployment.
 Next decision: **independent security review by LibertySquared**.
 
 ## Delivered files and scope
@@ -77,7 +79,7 @@ authorize retention. Every result denies deployment authority and carries
 | Protected baseline comparison | **13 files identical** | Runtime/UI/schema/installer/security/governance paths checked byte-for-byte |
 | Whitespace check | **PASS** | No diff whitespace errors |
 | Ruff | **NOT RUN — unavailable** | Stdlib compilation and the explicit AST boundary test ran |
-| CodeQL / remote CI | **NOT RUN** | Workflow remains enabled; no push/PR authorized |
+| CodeQL / remote CI | **PASS on initial head** | Runs 40612902769 (CodeQL), 40612902838 (unit/schema), 40612902693 (privacy) passed on `fec92ab`. Repeat after review fixes |
 | VM tests V01–V28 | **NOT RUN / BLOCKED on reviewed VM-only implementation and separate authorization** | No live systemd, UFW, SSH, reboot or guest power-cut result |
 | Physical storage/power loss | **NOT RUN** | Memory-model success does not establish this property |
 
@@ -151,8 +153,9 @@ or readiness for production from a test-approved synthetic decision.
 
 ## LibertySquared independent-review checklist
 
-- [ ] Confirm the clean-worktree start, `de42d91` baseline, local branch and one
-  completed local commit; verify there was no push, PR, merge, tag or release.
+- [ ] Confirm the clean-worktree start and `de42d91` baseline, the
+  published PR #5 tree against the reviewed local commit, and that no
+  merge, tag, release or production deployment occurred.
 - [ ] Review the independently rechecked F02–F05 source facts without treating
   historical assertions as live evidence; do not execute rejected scripts.
 - [ ] Compare the transition table with every Controller event and blocked outcome;
@@ -236,3 +239,15 @@ faults use an explicit label/occurrence and an exactly-once hit assertion.
 | T46 | `test_46_restore_error_preserves_pending_work_and_retries` | PASS |
 | T47 | `test_47_timer_arm_error_never_allows_restriction` | PASS |
 | T48 | `test_48_corrupt_previous_run_cannot_be_overwritten_by_prepare` | PASS |
+
+## Post-publication security-review amendments
+
+The original offline totals above describe the initial R1 commit. Subsequent
+Sourcery/CodeRabbit findings motivated modeled durability uncertainty, a
+synthetic concurrency guard, foreign-firewall drift checks, restorer effect
+rechecks, committed cleanup, clock regression, loaded timer identity, and
+running/queued-job separation. The VM plan now requires private host-side
+pre-fault receipts, fail-fast commands and explicit client credential paths.
+New regression cases were added; use the current PR CI results for revised
+counts. No real VM tests have run (V01–V28 NOT RUN). F01 and real F02–F05
+remain unclosed and privileged integration remains prohibited.
