@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 190" role="img" aria-labelledby="title desc">
+<title id="title">Omarchy SSH Guard badge</title><desc id="desc">Shield badge: local-first, no backend, no telemetry</desc>
+<defs><linearGradient id="night"><stop stop-color="#081c3f"/><stop offset="1" stop-color="#020714"/></linearGradient><linearGradient id="royal"><stop stop-color="#1564ee"/><stop offset="1" stop-color="#102273"/></linearGradient><linearGradient id="gold"><stop stop-color="#cf8a0d"/><stop offset=".5" stop-color="#ffe6a1"/><stop offset="1" stop-color="#a96b13"/></linearGradient><clipPath id="shield"><path d="M100 21 155 39 150 103Q145 142 100 173 55 142 50 103L45 39Z"/></clipPath></defs>
+<rect x="2" y="2" width="896" height="186" rx="25" fill="url(#night)" stroke="#bb233b" stroke-width="4"/>
+<path d="M100 13 166 35 159 107Q152 151 100 183 48 151 41 107L34 35Z" fill="#8d0e2c" stroke="#ef3851" stroke-width="4"/>
+<path d="M100 21 155 39 150 103Q145 142 100 173 55 142 50 103L45 39Z" fill="url(#royal)" stroke="#f7c662" stroke-width="3"/>
+<g clip-path="url(#shield)"><path d="M27 129 143 20 175 53 58 162Z" fill="url(#gold)"/></g>
+<text x="206" y="89" font-family="Inter,Arial,sans-serif" font-size="47" font-weight="700" letter-spacing="1" fill="#f3d88f">OMARCHY SSH GUARD</text>
+<text x="209" y="137" font-family="Inter,Arial,sans-serif" font-size="23" font-weight="600" letter-spacing="1.2" fill="#a7c8fa">LOCAL-FIRST  ·  NO BACKEND  ·  NO TELEMETRY</text>
+<path d="M208 154H857" stroke="#a72b46" stroke-width="2" opacity=".85"/></svg>

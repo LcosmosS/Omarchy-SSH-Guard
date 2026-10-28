@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+<title id="title">Omarchy SSH Guard shield</title><desc id="desc">Royal-blue shield with diagonal gold stripe, scarlet-red border on midnight backdrop</desc>
+<defs><radialGradient id="midnight"><stop stop-color="#0c2043"/><stop offset="1" stop-color="#020712"/></radialGradient><linearGradient id="royal" x2=".8" y2="1"><stop stop-color="#145ef1"/><stop offset=".5" stop-color="#113cbb"/><stop offset="1" stop-color="#08164a"/></linearGradient><linearGradient id="gold"><stop stop-color="#d08b14"/><stop offset=".48" stop-color="#ffe9a0"/><stop offset="1" stop-color="#bd7510"/></linearGradient><clipPath id="inner"><path d="M256 58 396 107 388 267Q378 365 256 450 134 365 124 267L116 107Z"/></clipPath></defs>
+<rect width="512" height="512" rx="48" fill="url(#midnight)"/>
+<g fill="#7faff1" opacity=".19"><circle cx="75" cy="83" r="2"/><circle cx="432" cy="67" r="1.5"/><circle cx="83" cy="386" r="1.5"/><circle cx="447" cy="344" r="2"/></g>
+<path d="M256 40 416 96 407 269Q400 373 256 470 112 373 105 269L96 96Z" fill="#8f1330" stroke="#e92b47" stroke-width="8" stroke-linejoin="round"/>
+<path d="M256 58 396 107 388 267Q378 365 256 450 134 365 124 267L116 107Z" fill="url(#royal)" stroke="#f8c25e" stroke-width="6"/>
+<g clip-path="url(#inner)"><path d="M89 314 367 52 428 117 148 378Z" fill="url(#gold)"/><path d="M89 314 367 52" stroke="#fff4be" stroke-width="6" opacity=".66"/><path d="M148 378 428 117" stroke="#a56d18" stroke-width="5" opacity=".55"/></g>
+<path d="M256 40 416 96 407 269Q400 373 256 470 112 373 105 269L96 96Z" fill="none" stroke="#fa4353" stroke-width="3"/>
+</svg>
