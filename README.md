@@ -151,6 +151,31 @@ CONTRIBUTING.md            Contribution and privacy rules
 
 No deployment helper, evidence collector, credentials, IP allowlist or host-specific transaction files are supplied in this version. The plugin and CLI have distinct trust boundaries; the widget never invokes a privileged process.
 
+## Proposed v0.2 evidence review
+
+The local `review/v0.2-evidence-only` proposal adds a generic evidence schema and
+an optional offline linter. The SSH-HARDEN-01b privileged candidate is **blocked
+from integration** by the [security review](docs/SECURITY_REVIEW_01B_V2.md).
+The existing plugin, CLI, installer and version remain unchanged pending review.
+
+From a reviewed source checkout, as an ordinary user:
+
+```bash
+python3 -B bin/omarchy-guard-evidence /private/local/example.json
+```
+
+This checks structure and supplies local-clock diagnostics. It never verifies
+signatures, consults a journal, probes a network or authorizes deployment. Every
+verdict remains `NOT_VERIFIED`; exit 0 means structurally valid, including
+incomplete bundles. Keep real inputs outside the checkout. The linter is not
+installed by `install-local.sh` or invoked by the widget or audit CLI.
+
+See the [architecture and threat model](docs/ARCHITECTURE.md),
+[integration plan](docs/V0_2_INTEGRATION_PLAN.md), and
+[test report](docs/TEST_REPORT_01B_V2.md). CI also runs mandatory independent
+schema checks using development-only packages pinned in `requirements-schema.txt`.
+The default CLI and optional linter need only Python's standard library.
+
 ## Tests and CI
 
 ```bash

@@ -1,0 +1,372 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:omarchy-ssh-guard:evidence:v2",
+  "title": "Omarchy SSH Guard v0.2 candidate evidence interchange",
+  "description": "Structure only. No signature verification, journal provenance, deployment approval or network reachability attestation. Empty bundles are permitted as incomplete records. Local lint additionally requires canonical IP/UUID/UTC strings and JSON integer encodings.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/challenge"
+    },
+    {
+      "$ref": "#/$defs/report"
+    },
+    {
+      "$ref": "#/$defs/bundle"
+    }
+  ],
+  "$defs": {
+    "challenge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "milestone",
+        "kind",
+        "stage",
+        "run_id",
+        "challenge_id",
+        "nonce",
+        "issued_at",
+        "expires_at",
+        "policy_sha256",
+        "client_id",
+        "role",
+        "family",
+        "source",
+        "destination",
+        "destination_port",
+        "user",
+        "network_path",
+        "baseline_challenge_id"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "milestone": {
+          "const": "SSH-HARDEN-01b"
+        },
+        "kind": {
+          "const": "challenge"
+        },
+        "stage": {
+          "enum": [
+            "baseline",
+            "post"
+          ]
+        },
+        "run_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?![\\s\\S])"
+        },
+        "challenge_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?![\\s\\S])"
+        },
+        "nonce": {
+          "type": "string",
+          "pattern": "^(?:[0-9a-f]{64})(?![\\s\\S])"
+        },
+        "issued_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d(?:\\.\\d{1,6})?(?:Z|\\+00:00))(?![\\s\\S])"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d(?:\\.\\d{1,6})?(?:Z|\\+00:00))(?![\\s\\S])"
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^(?:[0-9a-f]{64})(?![\\s\\S])"
+        },
+        "client_id": {
+          "type": "string",
+          "pattern": "^(?:[a-z][a-z0-9_-]{0,31})(?![\\s\\S])"
+        },
+        "role": {
+          "enum": [
+            "authorized",
+            "unauthorized"
+          ]
+        },
+        "family": {
+          "enum": [
+            4,
+            6
+          ]
+        },
+        "source": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "ipv4"
+            },
+            {
+              "type": "string",
+              "format": "ipv6"
+            }
+          ]
+        },
+        "destination": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "ipv4"
+            },
+            {
+              "type": "string",
+              "format": "ipv6"
+            }
+          ]
+        },
+        "destination_port": {
+          "const": 22
+        },
+        "user": {
+          "type": "string",
+          "pattern": "^(?:(?:[a-z_][a-z0-9_-]{0,31})?)(?![\\s\\S])"
+        },
+        "network_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "baseline_challenge_id": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?![\\s\\S])"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "milestone",
+        "kind",
+        "challenge",
+        "started_at",
+        "completed_at",
+        "observed_source",
+        "observed_destination",
+        "source_port",
+        "tcp_connected",
+        "result",
+        "reachability_before",
+        "reachability_after",
+        "authenticated",
+        "fresh_connection",
+        "method",
+        "verified_at",
+        "banner_sha256",
+        "signature"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "milestone": {
+          "const": "SSH-HARDEN-01b"
+        },
+        "kind": {
+          "const": "report"
+        },
+        "challenge": {
+          "$ref": "#/$defs/challenge"
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d(?:\\.\\d{1,6})?(?:Z|\\+00:00))(?![\\s\\S])"
+        },
+        "completed_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d(?:\\.\\d{1,6})?(?:Z|\\+00:00))(?![\\s\\S])"
+        },
+        "observed_source": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "ipv4"
+            },
+            {
+              "type": "string",
+              "format": "ipv6"
+            }
+          ]
+        },
+        "observed_destination": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "ipv4"
+            },
+            {
+              "type": "string",
+              "format": "ipv6"
+            }
+          ]
+        },
+        "source_port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "tcp_connected": {
+          "type": "boolean"
+        },
+        "result": {
+          "enum": [
+            "connected",
+            "timeout",
+            "connection_refused",
+            "inconclusive"
+          ]
+        },
+        "reachability_before": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "reachability_after": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "authenticated": {
+          "type": "boolean"
+        },
+        "fresh_connection": {
+          "type": "boolean"
+        },
+        "method": {
+          "enum": [
+            "publickey",
+            "none"
+          ]
+        },
+        "verified_at": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d(?:\\.\\d{1,6})?(?:Z|\\+00:00))(?![\\s\\S])"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "banner_sha256": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:[0-9a-f]{64})(?![\\s\\S])"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "signature": {
+          "type": "string",
+          "pattern": "^(?:[0-9a-f]{64})(?![\\s\\S])"
+        }
+      }
+    },
+    "bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "milestone",
+        "kind",
+        "stage",
+        "run_id",
+        "baseline_run_id",
+        "policy_sha256",
+        "created_at",
+        "operator_attestation",
+        "authorized",
+        "unauthorized"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "milestone": {
+          "const": "SSH-HARDEN-01b"
+        },
+        "kind": {
+          "const": "bundle"
+        },
+        "stage": {
+          "enum": [
+            "baseline",
+            "post"
+          ]
+        },
+        "run_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?![\\s\\S])"
+        },
+        "baseline_run_id": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?![\\s\\S])"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^(?:[0-9a-f]{64})(?![\\s\\S])"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d(?:\\.\\d{1,6})?(?:Z|\\+00:00))(?![\\s\\S])"
+        },
+        "operator_attestation": {
+          "type": "boolean"
+        },
+        "authorized": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 1,
+          "items": {
+            "$ref": "#/$defs/report"
+          }
+        },
+        "unauthorized": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/report"
+          }
+        }
+      }
+    }
+  }
+}

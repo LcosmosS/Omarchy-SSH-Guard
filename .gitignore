@@ -15,3 +15,19 @@ transaction*.json
 ufw-backup*
 *.tar.gz
 *.log
+# Private runtime directories are never project fixtures. Ignore is defense in
+# depth only; review every diff, including files force-added with git add -f.
+runtime/
+private/
+clients/
+challenges/
+reports/
+outbox/
+backups/
+transactions/
+*-report.json
+*-challenge.json
+*_receipt.json
+*_journal*.jsonl
+*.tar
+*.tgz

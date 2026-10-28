@@ -14,6 +14,14 @@ If GitHub private vulnerability reporting is enabled, use the repository's **Sec
 - Reports contain booleans and aggregate counts, never raw inventories or real addresses.
 - Unreadable state is marked unknown and the verdict is always `NOT_VERIFIED`.
 
+The proposed v0.2 source-checkout evidence linter is also unprivileged and
+read-only. Structural validity, a current-looking timestamp, operator attestation
+and a MAC-shaped string confer no authority. It reads no signing keys and always
+reports `NOT_VERIFIED` with `deployment_authorized=false`. The privileged
+SSH-HARDEN-01b collector/executor is excluded; see the
+[review](docs/SECURITY_REVIEW_01B_V2.md) and
+[threat model](docs/ARCHITECTURE.md).
+
 ## Boundaries and non-goals
 
 Omarchy plugins execute within the user's unsandboxed desktop process. A trusted code review is required before installation. No claim is made for compromised local users, malicious administrators, kernel vulnerabilities, bad package provenance, malicious Docker sockets, upstream firewall/NAT rules, stolen SSH credentials, or internet reachability. A user in the `docker` group can generally obtain powerful privileges.
