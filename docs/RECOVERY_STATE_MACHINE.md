@@ -146,6 +146,9 @@ foreign firewall image -> publish `ROLLBACK_PENDING` in every uncommitted
 recovery (including baseline-already-restored no-op) -> restore exact baseline
 only if either image differs -> observe both firewall images -> publish
 `CLEANUP_PENDING(ROLLBACK)` -> cancel/observe cleanup -> publish `ROLLED_BACK`.
+A previously restored `CLEANUP_PENDING(ROLLBACK)` or terminal `ROLLED_BACK`
+run with confirmed baseline performs cleanup reobservation/retry only, without
+another `ROLLBACK_PENDING` publication or redundant cancellation.
 Missing collector, Docker, journal parser, QML, CodeQL or unrelated packages must
 not be consulted on this path. Minimal restoration dependencies are still required;
 their absence is `RECOVERY_BLOCKED`, never successful recovery.

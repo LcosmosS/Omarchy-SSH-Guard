@@ -512,6 +512,11 @@ class Controller:
             return self._finish()
         actual = self._observed_firewall("recovery")
         require(set(actual) <= {capsule["baseline"], capsule["restricted"]})
+        if (actual == (capsule["baseline"],) * 2
+                and state["phase"] in (Phase.ROLLED_BACK.value, Phase.CLEANUP_PENDING.value)):
+            # Already-restored/terminal retry: only reobserve or retry cleanup.
+            # No redundant rollback publication or cancellation is permitted.
+            return self._finish()
         self._record(Phase.ROLLBACK_PENDING, state["plan"], "ROLLBACK")
         if actual != (capsule["baseline"],) * 2:
             require(self.w.restorer_available)
