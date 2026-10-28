@@ -540,14 +540,16 @@ class Controller:
         try:
             if expected_run is not None and expected_run != self.run_id:
                 return Result(Phase.RECOVERY_BLOCKED, "STALE_IGNORED")
+            # The prepare event performs its own old-lease validation. All other
+            # events MUST reject stale ownership before an injectable checkpoint.
+            if event != "prepare":
+                lease = self.w.disk.read("lease")
+                require(type(lease) is dict)
+                if lease.get("run_id") != self.run_id:
+                    raise StaleRun()
             self.w.checkpoint("event:" + event + ":entry")
             if event == "prepare":
                 return self._prepare()
-            # All later events must establish ownership before any effects/checkpoints.
-            lease = self.w.disk.read("lease")
-            require(type(lease) is dict)
-            if lease.get("run_id") != self.run_id:
-                raise StaleRun()
             if event == "arm":
                 return self._arm()
             if event == "apply":

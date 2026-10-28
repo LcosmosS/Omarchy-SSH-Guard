@@ -274,3 +274,17 @@ pre-fault receipts, fail-fast commands and explicit client credential paths.
 New regression cases were added; use the current PR CI results for revised
 counts. No real VM tests have run (V01–V28 NOT RUN). F01 and real F02–F05
 remain unclosed and privileged integration remains prohibited.
+
+### LibertySquared independent-review correction — stale-run entry isolation
+
+The independent reviewer identified that a stale controller without an explicit
+`expected_run` could reach `event:<event>:entry` before the active lease was
+checked. The current PR candidate now validates active lease ownership before
+**any** injectable entry checkpoint for non-`prepare` events, while preserving
+the early explicit-`expected_run` mismatch and the prepare lease rules.
+T17 now installs a **mutating** callback for each of the six non-prepare
+entry events and requires zero fault-hook hits and zero changes to the
+current run's disk, timer or firewall images. This is test-model isolation
+only. Actual cross-process locking and external UFW races remain blocked
+for VM implementation and independent validation. All V01–V28 remain NOT RUN.
+

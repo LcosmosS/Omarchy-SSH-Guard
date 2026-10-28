@@ -266,10 +266,24 @@ class RecoveryFaultMatrix(unittest.TestCase):
         for event in ("prepare", "arm", "apply"):
             self.assertNotEqual(current.execute(event).phase, Phase.RECOVERY_BLOCKED)
         before = deepcopy((world.disk.visible, world.timer.snapshot(), world.firewall.snapshot()))
-        with injected(world, "event:recover:entry"):
-            result = old.execute("recover")
-        self.assertEqual(result.code, "STALE_IGNORED")
-        self.assertEqual(before, (world.disk.visible, world.timer.snapshot(), world.firewall.snapshot()))
+        # A stale run must never execute any event-entry callback. Every hook
+        # would damage the new run if the ownership check were ordered too late.
+        for event in ("arm", "apply", "decide", "recover", "reconcile", "status"):
+            with self.subTest(event=event):
+                def corrupt_current(w):
+                    w.timer.active = False
+                    w.firewall.live = "stale-injected-drift"
+                hook = Fault("event:" + event + ":entry", mode="action",
+                             action=corrupt_current)
+                world.fault = hook
+                try:
+                    result = old.execute(event)
+                finally:
+                    world.fault = None
+                self.assertEqual(result.code, "STALE_IGNORED")
+                self.assertEqual(hook.hits, 0, "Stale run reached a mutating entry hook")
+                self.assertEqual(before, (world.disk.visible, world.timer.snapshot(),
+                                          world.firewall.snapshot()))
 
     def test_18_repeated_rollback_converges_without_extra_effect(self):
         world, controller = self.pending()
