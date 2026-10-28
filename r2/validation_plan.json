@@ -1,0 +1,261 @@
+{
+  "schema": "ssh-guard-r2-design-plan-v0.1",
+  "classification": "R2_DESIGN_ONLY",
+  "reference": "docs/RECOVERY_VM_VALIDATION.md",
+  "vm_executed": false,
+  "deployment_authorized": false,
+  "cases": [
+    {
+      "id": "V01",
+      "initial_state": "RESTRICTED_PENDING",
+      "fault": "Collector unavailable",
+      "expected_recovery": "Restore baseline and clean timer",
+      "required_observation": "Dependency absence + both firewall images + fresh dual-family tests",
+      "pass_fail_rule": "PASS only if recovery runs without collector",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V02",
+      "initial_state": "RESTRICTED_PENDING",
+      "fault": "Docker unavailable",
+      "expected_recovery": "Same as V01",
+      "required_observation": "Actual binary/package absence and restore trace",
+      "pass_fail_rule": "PASS only if no Docker dependency",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V03",
+      "initial_state": "RESTRICTED_PENDING",
+      "fault": "Journald unavailable",
+      "expected_recovery": "Same as V01",
+      "required_observation": "Masked service/sockets and independent console traces",
+      "pass_fail_rule": "PASS only if no journal parser/service needed",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V04",
+      "initial_state": "RESTRICTED_PENDING",
+      "fault": "Unrelated packages/QML/CodeQL absent",
+      "expected_recovery": "Same as V01",
+      "required_observation": "Executable dependency closure and restore",
+      "pass_fail_rule": "PASS only if declared essential set suffices",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V05",
+      "initial_state": "PREPARED",
+      "fault": "Cut at each incomplete preparation publication",
+      "expected_recovery": "No restriction; blocked/aborted preparation",
+      "required_observation": "Reached marker, surviving objects, kernel rules",
+      "pass_fail_rule": "FAIL if restriction preceded complete preparation",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V06",
+      "initial_state": "RECOVERY_DURABLE",
+      "fault": "Missing/elapsed/disabled timer",
+      "expected_recovery": "No restrictive mutation",
+      "required_observation": "Actual loaded config/future elapse + rule syscall trace",
+      "pass_fail_rule": "FAIL if active status alone permits mutation",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V07",
+      "initial_state": "MUTATION_INTENT",
+      "fault": "Kill process immediately before mutation",
+      "expected_recovery": "Restore/reobserve baseline",
+      "required_observation": "Process death proof, no guest reboot, rules/access",
+      "pass_fail_rule": "Never count as power-loss proof",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V08",
+      "initial_state": "MUTATION_INTENT",
+      "fault": "Kill after live/persisted mutation",
+      "expected_recovery": "Restore baseline and clean up",
+      "required_observation": "Separate kernel/persisted images and fresh flows",
+      "pass_fail_rule": "PASS only if both images converge",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V09",
+      "initial_state": "RESTRICTED_PENDING",
+      "fault": "Power cut before commit marker sync",
+      "expected_recovery": "Reconcile surviving valid old/new decision",
+      "required_observation": "Raw storage outcome, marker integrity and loaded recovery",
+      "pass_fail_rule": "FAIL on guessed retention or ignored valid surviving marker",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V10",
+      "initial_state": "COMMIT_DECIDED",
+      "fault": "Power cut before cancel",
+      "expected_recovery": "Retain valid restriction, retry cleanup",
+      "required_observation": "Durable marker and manager/flow observations",
+      "pass_fail_rule": "FAIL if rollback reopens valid committed restriction",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V11",
+      "initial_state": "CLEANUP_PENDING(COMMIT)",
+      "fault": "Cancellation syscall failure",
+      "expected_recovery": "Keep cleanup pending",
+      "required_observation": "Return error + independent active/enabled/job state",
+      "pass_fail_rule": "FAIL if reported completed/cancelled",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V12",
+      "initial_state": "CLEANUP_PENDING(COMMIT)",
+      "fault": "False successful cancel acknowledgement",
+      "expected_recovery": "Same as V11",
+      "required_observation": "Independent manager still active despite claimed success",
+      "pass_fail_rule": "FAIL if status trusts return code",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V13",
+      "initial_state": "CLEANUP_PENDING(COMMIT)",
+      "fault": "Restart/retry after expiry",
+      "expected_recovery": "Finish cleanup without new evidence",
+      "required_observation": "Marker, exact restricted image, inactive/disabled/no jobs",
+      "pass_fail_rule": "PASS only if cleanup is retryable",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V14",
+      "initial_state": "RESTRICTED_PENDING",
+      "fault": "Deadline expires; repeat apply",
+      "expected_recovery": "Restore baseline",
+      "required_observation": "Actual deadline/clock and no ordinary pending success",
+      "pass_fail_rule": "FAIL if deadline is extended or ignored",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V15",
+      "initial_state": "ROLLBACK_ARMED",
+      "fault": "Active timer without future occurrence",
+      "expected_recovery": "No mutation/rollback as applicable",
+      "required_observation": "Real next-elapse values and running-service state",
+      "pass_fail_rule": "FAIL if active alone passes",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V16",
+      "initial_state": "Any owned state",
+      "fault": "Wrong invocation run ID",
+      "expected_recovery": "No changes",
+      "required_observation": "Before/after current run records/rules/manager",
+      "pass_fail_rule": "FAIL on any current-run effect",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V17",
+      "initial_state": "Run B pending",
+      "fault": "Deliver stale run A invocation",
+      "expected_recovery": "Ignore A",
+      "required_observation": "B's complete state/rules/timer comparison",
+      "pass_fail_rule": "FAIL if B changes",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V18",
+      "initial_state": "ROLLED_BACK",
+      "fault": "Repeat recovery twice",
+      "expected_recovery": "Remain baseline/clean",
+      "required_observation": "Same rule bytes, persisted image and zero duplicate rules",
+      "pass_fail_rule": "FAIL on new unauthorized mutation",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V19",
+      "initial_state": "CLEANUP_PENDING(ROLLBACK)",
+      "fault": "Cancel failure then retry",
+      "expected_recovery": "Baseline retained; cleanup converges",
+      "required_observation": "Restore once or idempotent equivalent, retry succeeds",
+      "pass_fail_rule": "FAIL if ended phase suppresses cleanup",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V20",
+      "initial_state": "Any publication",
+      "fault": "Real ENOSPC",
+      "expected_recovery": "Stop advancement; reconcile safely",
+      "required_observation": "Actual write/sync errno and durable image",
+      "pass_fail_rule": "FAIL on unsupported success",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V21",
+      "initial_state": "MUTATION_INTENT/decision",
+      "fault": "Real file/directory fsync EIO",
+      "expected_recovery": "Observe uncertain publication; reconcile",
+      "required_observation": "Syscall failure plus surviving old/new bytes",
+      "pass_fail_rule": "FAIL on pretending sync succeeded",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V22",
+      "initial_state": "State publication",
+      "fault": "Partial write/rename interruption",
+      "expected_recovery": "Previous/full valid record only",
+      "required_observation": "Bytes/integrity, OOB recovery if invalid",
+      "pass_fail_rule": "FAIL if torn record authorizes mutation/retention",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V23",
+      "initial_state": "RESTRICTED_PENDING",
+      "fault": "Wall clock backward/forward jump",
+      "expected_recovery": "Uncommitted rollback",
+      "required_observation": "Independent wall/monotonic/boot observations",
+      "pass_fail_rule": "FAIL on extended window",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V24",
+      "initial_state": "Uncommitted pending",
+      "fault": "Orderly reboot/new boot identity",
+      "expected_recovery": "Restore baseline before new transaction",
+      "required_observation": "New boot ID, boot-reconciler trace and both families",
+      "pass_fail_rule": "Keep separate from V26 power tests",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V25",
+      "initial_state": "Pending/committed",
+      "fault": "Missing/corrupt essential metadata",
+      "expected_recovery": "Explicit blocked/OOB, no guessed mutation",
+      "required_observation": "Binding/integrity error, no false success",
+      "pass_fail_rule": "Record recovery limitation; do not close a finding from this row alone",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V26",
+      "initial_state": "Every durable/effect boundary",
+      "fault": "Abrupt VM destroy/start",
+      "expected_recovery": "Follow surviving marker/capsule decision",
+      "required_observation": "Hypervisor cut receipt, reached marker, storage/rules/flows",
+      "pass_fail_rule": "PASS only per boundary; leave unexecuted cuts NOT RUN",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V27",
+      "initial_state": "Pending",
+      "fault": "Recovery service already active/queued",
+      "expected_recovery": "Detect invalid arming; bounded recovery",
+      "required_observation": "Actual manager jobs and service state",
+      "pass_fail_rule": "FAIL on assumed restart at timer expiry",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "V28",
+      "initial_state": "Terminal committed",
+      "fault": "Timer reactivated or loaded drop-in changed",
+      "expected_recovery": "Retry only owned cleanup or block",
+      "required_observation": "Actual effective config, not disk comment alone",
+      "pass_fail_rule": "FAIL on stale success or unrelated-unit cancellation",
+      "status": "NOT_RUN"
+    }
+  ]
+}
