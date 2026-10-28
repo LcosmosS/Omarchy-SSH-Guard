@@ -42,6 +42,18 @@ Omarchy SSH Guard is designed for transparent, locally controlled SSH security o
 
 This project is **not** a hosted monitoring service, a cloud management platform, a centralized policy engine or a one-click privileged hardening tool. Stronger controls will remain separate and blocked until independent evidence and recovery tests establish their safety.
 
+### Long-term product vision (proposed; not currently implemented)
+
+The intended product is a **local-first SSH identity, firewall management, security monitoring and recoverable deployment system** for Omarchy, operated through a CLI and a native Quickshell dashboard. Its four planned subsystems are identity/key management, per-port UFW/firewall policy, btop++-adjacent resource and access-event monitoring, and a separately privileged recovery controller.
+
+Two planned access modes must be distinguished: **key-guarded SSH** (OpenSSH authenticates approved public keys after TCP reaches `sshd`) and **network-concealed SSH** (a separately authenticated network channel restricts which sources can reach SSH at all). UFW/nftables do **not** identify SSH public keys from initial TCP packets. Likewise, firewall-denied packets cannot be attributed to particular SSH keys.
+
+The envisioned dashboard will distinguish listening ports, effective host/forwarding rules, authentication policy, observed attempts, and **independently verified** external reachability. It will provide an operator-reviewed workflow to **Audit → Recommend → Review → Authorize → Protect → Deploy → Independently verify → Finalize or revert**, with a confirmed rollback timer prepared **before** any restrictive change. A "one-click" action will initiate that guarded process, **not silently apply root changes or suppress failed verification**.
+
+Installation remains two-stage by design: `omarchy plugin add` only installs/enables the user-level widget (no `sudo` install hook); a separately authorized management setup would eventually present a live audit and reviewed rule plan before a narrowly scoped local privileged helper could be installed. **Neither privilege elevation nor firewall deployment exists in v0.1.0.** There is no project-operated backend/cloud service, harvesting, telemetry or centralized evidence store; future user-controlled local helper/IPC and protected logs do not change this privacy commitment.
+
+**[Read the full product architecture, security boundaries, dashboard requirements and phased acceptance criteria](docs/PRODUCT_VISION_AND_ARCHITECTURE.md).**
+
 ### Local-first privacy and user control
 
 | Property | Current behavior |
@@ -185,6 +197,7 @@ scripts/check.sh           Offline test + metadata validation
 scripts/install-local.sh   Local user-level CLI copy only
 tests/test_guard.py        Deterministic parser and negative tests
 docs/SSH_HARDENING.md      Manual, rollback-first security runbook
+docs/PRODUCT_VISION_AND_ARCHITECTURE.md  Future product contract (no executable changes)
 SECURITY.md                Security policy and responsible reporting
 CONTRIBUTING.md            Contribution and privacy rules
 .github/workflows/ci.yml  Unprivileged GitHub Actions smoke tests
@@ -254,13 +267,21 @@ Public pull requests must contain **synthetic fixtures only**. Do not commit rea
 
 ## Roadmap
 
-- v0.1: safe read-only inspection, non-executable runbook, informational Omarchy widget.
-- Read-only v0.2 schema/linter (merged PR #3): operator-supplied local evidence, structural diagnostics only, always `NOT_VERIFIED`.
-- R1 (PR #5): non-production recovery reference model, fault-injection tests and **28 future, unexecuted** VM cases.
-- Future R2: independently reviewed disposable-VM adapter and real recovery, power-cut, systemd and dual-stack network validation.
-- Possible future privileged component (not authorized): local and root-owned only after independent evidence-authority and recovery validation, with explicit user consent and fail-closed rollback.
+The [product vision and architecture](docs/PRODUCT_VISION_AND_ARCHITECTURE.md) is **a specification of intended behavior, not a list of shipped features**.
 
-**Status:** community prototype; no independent penetration test, no security guarantee and no endorsement by Omarchy.
+| Workstream | Status | Scope and release boundary |
+| --- | --- | --- |
+| v0.1 widget and CLI | **Current read-only prototype** | Local UFW/SSH/Docker inspection, static Quickshell guidance; no enforcement |
+| Evidence schema/linter (PR #3) | **Merged, read-only** | Offline structural checks; always `NOT_VERIFIED` |
+| Recovery R1 (PR #5) | **Merged reference model** | In-memory fault tests and recovery contract; no real executor |
+| Independent evidence F01-R0 (PR #6) | **Design PR under review** | Separate witness/authority modeling; F01 remains OPEN |
+| Recovery R2-D0 (PR #7) | **Design PR under review** | Disposable-VM contract; all V01–V28 `NOT_RUN` |
+| Product dashboard and event monitor | **Planned** | Port dimensions, resource summary/btop++ launcher and access-event classification |
+| Key/identity manager | **Planned** | Local-only enrollment, fingerprint inventory, revocation, rotation, account mapping |
+| Privileged transaction helper | **Blocked** | Separate code review, scoped polkit authorization, actual VM recovery and independent F01 evidence gates |
+| Deployment and release validation | **Not authorized** | Real host-specific security review, user consent, rollback and tested external dual-stack access |
+
+**Status:** community prototype; no independent penetration test, no security guarantee and no endorsement by Omarchy. Neither this documentation nor any reference-model test authorizes privileged deployment.
 
 ## References
 
